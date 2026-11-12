@@ -1,9 +1,13 @@
 # 🛡️ Beldex Nexus Rate Sentinel
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-brightgreen?style=for-the-badge&logo=github)](https://nishanth2312.github.io/beldex-nexus-rate-sentinel/)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.162%2B-009688.svg)](https://fastapi.tiangolo.com/)
-[![Cross-Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20Docker-green.svg)](#cross-platform-installation--usage)
 [![Tests](https://img.shields.io/badge/Tests-8%20Passed%20(100%25)-brightgreen.svg)](#automated-testing)
+
+> 🌐 **Live Testing Web App (Zero-Install):**  
+> 👉 **[https://nishanth2312.github.io/beldex-nexus-rate-sentinel/](https://nishanth2312.github.io/beldex-nexus-rate-sentinel/)**  
+> Test live real-time rate differences, audio chimes, price spike simulations, and Telegram alerts directly in your browser without installing anything!
 
 An autonomous, cross-platform cryptocurrency monitoring and high-demand selling alert platform designed specifically for **Beldex (BDX)** and **nexus.vin** traders.
 
