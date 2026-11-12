@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Beldex Nexus Rate Sentinel | 30m Rate Difference & Selling Alerts</title>
+  
+  <!-- Tailwind CSS & Font -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-[#0b0f19] text-slate-100 min-h-screen">
+
+  <!-- TOP NAVIGATION BAR -->
+  <header class="border-b border-[#233154] bg-[#111728]/90 backdrop-blur sticky top-0 z-40 px-4 py-3">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+      
+      <!-- Brand & Status -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-blue-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+          <i class="fa-solid fa-shield-halved text-white text-lg"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-extrabold text-lg text-white tracking-tight">BELDEX NEXUS SENTINEL</h1>
+            <span class="beacon-live"></span>
+            <span id="wsStatusBadge" class="badge badge-green text-[10px]">LIVE FEED</span>
+          </div>
+          <p class="text-xs text-slate-400">Autonomous 30m Rate Difference & High Demand Selling Alerts</p>
+        </div>
+      </div>
+
+      <!-- Action Center Buttons -->
+      <div class="flex items-center gap-2 flex-wrap">
+        <!-- Live Audio Toggle -->
+        <button id="btnAudioToggle" class="btn btn-secondary text-xs px-3 py-2" title="Toggle audio chime on price spike">
+          <i id="audioIcon" class="fa-solid fa-volume-high text-emerald-400"></i>
+          <span id="audioText">Sound Alert On</span>
+        </button>
+
+        <!-- Force Scan -->
+        <button id="btnScanNow" class="btn btn-secondary text-xs px-3 py-2">
+          <i id="scanIcon" class="fa-solid fa-rotate text-blue-400"></i>
+          <span>Scan Now</span>
+        </button>
+
+        <!-- Simulate Spike -->
+        <button id="btnOpenSimulate" class="btn btn-secondary text-xs px-3 py-2 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10">
+          <i class="fa-solid fa-bolt-lightning"></i>
+          <span>Simulate Surge</span>
+        </button>
+
+        <!-- Nexus Bookmarklet Helper -->
+        <button id="btnOpenNexusModal" class="btn btn-secondary text-xs px-3 py-2 border-indigo-500/40 text-indigo-400 hover:bg-indigo-500/10">
+          <i class="fa-solid fa-link"></i>
+          <span>Nexus Sync</span>
+        </button>
+
+        <!-- Settings Modal Trigger -->
+        <button id="btnOpenSettings" class="btn btn-primary text-xs px-4 py-2">
+          <i class="fa-solid fa-gear"></i>
+          <span>Alerts & Config</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- TOP HERO: 30-MINUTE RATE DIFFERENCE & SELLING SIGNAL -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- HERO PRIMARY CARD: 30m DIFFERENCE & ACTION SIGNAL -->
+      <div class="lg:col-span-2 card card-hero relative overflow-hidden border-2 border-[#2b3d68]">
+        <!-- Background Ambient Glow -->
+        <div id="ambientGlow" class="absolute -right-20 -top-20 w-80 h-80 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none"></div>
+
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-[#233154] pb-4 mb-4">
+          <div class="flex items-center gap-2">
+            <span class="px-2.5 py-1 rounded bg-blue-500/20 text-blue-400 font-mono font-bold text-xs uppercase tracking-wider">
+              30-Minute Window Analysis
+            </span>
+            <span id="diffStatusTag" class="badge badge-green text-xs">MONITORING ACTIVE</span>
+          </div>
+          <div class="text-xs text-slate-400">
+            Updated: <span id="lastTickTime" class="font-mono text-slate-300">Just now</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+          
+          <!-- Large 30m Diff Metric -->
+          <div>
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">30-Minute Rate Difference</div>
+            <div class="flex items-baseline gap-3 my-1">
+              <span id="diff30mPercent" class="text-4xl md:text-5xl font-black font-mono rate-surge-positive">
+                +0.00%
+              </span>
+              <span id="diff30mIndicator" class="text-xl font-bold text-emerald-400">
+                <i class="fa-solid fa-arrow-trend-up"></i>
+              </span>
+            </div>
+            <div class="text-sm font-medium text-slate-300 flex items-center gap-2">
+              <span>Diff: <span id="diff30mUsd" class="font-mono font-bold text-white">$0.0000</span></span>
+              <span>•</span>
+              <span><span id="diff30mInr" class="font-mono font-bold text-white">₹0.00</span></span>
+            </div>
+
+            <!-- Selling Signal Banner -->
+            <div id="signalBanner" class="mt-4 p-3 rounded-lg bg-emerald-950/40 border border-emerald-500/30 flex items-center gap-3">
+              <div id="signalIconBox" class="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400 text-lg flex-shrink-0">
+                <i class="fa-solid fa-bullhorn"></i>
+              </div>
+              <div>
+                <div id="signalTitle" class="text-xs font-bold text-emerald-400 uppercase tracking-wide">Monitoring 30m Difference</div>
+                <div id="signalDesc" class="text-xs text-slate-300">Surge threshold set to <span id="thresholdDisplay" class="font-bold">3.0%</span>. Automatic SMS, Email & Telegram will fire on high price demand.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Price Now vs Price 30m Ago Breakdown -->
+          <div class="bg-[#0f172a]/80 p-4 rounded-xl border border-[#233154] space-y-3">
+            <div class="flex justify-between items-center text-xs text-slate-400 border-b border-[#1e293b] pb-2">
+              <span>Metric</span>
+              <span>Price (USD / INR)</span>
+            </div>
+
+            <div class="flex justify-between items-center">
+              <div class="flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full bg-emerald-400"></div>
+                <span class="text-xs text-slate-300 font-semibold">Current BDX Rate</span>
+              </div>
+              <div class="text-right font-mono">
+                <div id="heroCurUsd" class="text-lg font-bold text-emerald-400">$0.0710</div>
+                <div id="heroCurInr" class="text-xs text-slate-400">₹6.66</div>
+              </div>
+            </div>
+
+            <div class="flex justify-between items-center">
+              <div class="flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full bg-slate-500"></div>
+                <span class="text-xs text-slate-300 font-semibold">Rate 30 Mins Ago</span>
+              </div>
+              <div class="text-right font-mono">
+                <div id="heroPastUsd" class="text-sm font-semibold text-slate-300">$0.0710</div>
+                <div id="heroPastInr" class="text-xs text-slate-500">₹6.66</div>
+              </div>
+            </div>
+
+            <div class="flex justify-between items-center pt-2 border-t border-[#1e293b]">
+              <span class="text-xs text-slate-400">Your Coin Portfolio:</span>
+              <span id="heroHoldingsAmount" class="text-xs font-mono font-bold text-blue-400">10,000 BDX</span>
+            </div>
+
+            <div class="flex justify-between items-center bg-[#131b2e] p-2 rounded border border-[#1e293b]">
+              <div>
+                <div class="text-[11px] text-slate-400 uppercase">Estimated Sell Value</div>
+                <div id="heroPortGain" class="text-[11px] text-emerald-400 font-mono">+₹0.00 in 30m</div>
+              </div>
+              <div class="text-right">
+                <div id="heroPortInr" class="text-base font-black text-white font-mono">₹66,600</div>
+                <div id="heroPortUsd" class="text-xs text-slate-400 font-mono">$710.00</div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- NEXUS.VIN INTEGRATION CARD -->
+      <div class="card flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between border-b border-[#233154] pb-3 mb-3">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-server text-indigo-400"></i>
+              <h2 class="font-bold text-sm text-white">nexus.vin Portal Status</h2>
+            </div>
+            <span id="nexusBadge" class="badge badge-amber text-[10px]">Awaiting Sync</span>
+          </div>
+
+          <div class="space-y-3">
+            <div class="p-3 bg-[#0d1322] rounded-lg border border-[#233154]">
+              <div class="text-xs text-slate-400 mb-1">Nexus Verified BDX Rate:</div>
+              <div class="flex items-baseline justify-between">
+                <div id="nexusRateDisplay" class="text-2xl font-mono font-bold text-indigo-400">--</div>
+                <div id="nexusInrDisplay" class="text-xs font-mono text-slate-400">--</div>
+              </div>
+            </div>
+
+            <div class="flex justify-between items-center text-xs">
+              <span class="text-slate-400">Market Arbitrage Spread:</span>
+              <span id="nexusArbitrageDisplay" class="font-mono font-bold text-slate-300">0.00%</span>
+            </div>
+
+            <div class="flex justify-between items-center text-xs">
+              <span class="text-slate-400">Sync Method:</span>
+              <span id="nexusSyncMethod" class="font-mono text-slate-300">Companion Relay / Ready</span>
+            </div>
+
+            <div class="flex justify-between items-center text-xs">
+              <span class="text-slate-400">Last Synced:</span>
+              <span id="nexusLastSync" class="font-mono text-slate-400">Never</span>
+            </div>
+
+            <div id="nexusDetailMsg" class="p-2.5 rounded bg-blue-950/30 border border-blue-500/20 text-xs text-slate-300">
+              nexus.vin uses Cloudflare session validation. Click <strong>Nexus Sync</strong> above to relay live rates from your browser tab!
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-4 border-t border-[#233154] flex gap-2">
+          <button id="btnQuickNexusSync" class="btn btn-secondary w-full text-xs">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+            <span>Companion Guide</span>
+          </button>
+          <button id="btnManualRate" class="btn btn-secondary w-full text-xs">
+            <i class="fa-solid fa-pen-to-square"></i>
+            <span>Input Rate</span>
+          </button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- MULTI-TIMEFRAME RATE DIFFERENCE MATRIX -->
+    <section class="card">
+      <div class="flex items-center justify-between mb-4 border-b border-[#233154] pb-3">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-chart-line text-blue-400"></i>
+          <h2 class="font-bold text-sm text-white">Multi-Timeframe Rate Difference Matrix</h2>
+        </div>
+        <span class="text-xs text-slate-400">Comparing current price against rolling intervals</span>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+        
+        <!-- 5m Diff -->
+        <div class="p-3 bg-[#0d1322] rounded-xl border border-[#233154] text-center">
+          <div class="text-[11px] font-semibold text-slate-400 uppercase">5-Min Diff</div>
+          <div id="matrix5mPct" class="text-xl font-bold font-mono my-1 text-slate-300">--</div>
+          <div id="matrix5mUsd" class="text-[11px] font-mono text-slate-500">--</div>
+        </div>
+
+        <!-- 15m Diff -->
+        <div class="p-3 bg-[#0d1322] rounded-xl border border-[#233154] text-center">
+          <div class="text-[11px] font-semibold text-slate-400 uppercase">15-Min Diff</div>
+          <div id="matrix15mPct" class="text-xl font-bold font-mono my-1 text-slate-300">--</div>
+          <div id="matrix15mUsd" class="text-[11px] font-mono text-slate-500">--</div>
+        </div>
+
+        <!-- 30m Diff (Hero) -->
+        <div class="p-3 bg-blue-950/30 rounded-xl border-2 border-blue-500/40 text-center shadow-lg shadow-blue-500/10">
+          <div class="text-[11px] font-bold text-blue-400 uppercase tracking-wide">30-Min Diff (Target)</div>
+          <div id="matrix30mPct" class="text-2xl font-black font-mono my-1 text-emerald-400">--</div>
+          <div id="matrix30mUsd" class="text-[11px] font-mono font-semibold text-slate-300">--</div>
+        </div>
+
+        <!-- 1h Diff -->
+        <div class="p-3 bg-[#0d1322] rounded-xl border border-[#233154] text-center">
+          <div class="text-[11px] font-semibold text-slate-400 uppercase">1-Hour Diff</div>
+          <div id="matrix1hPct" class="text-xl font-bold font-mono my-1 text-slate-300">--</div>
+          <div id="matrix1hUsd" class="text-[11px] font-mono text-slate-500">--</div>
+        </div>
+
+        <!-- 24h Diff -->
+        <div class="p-3 bg-[#0d1322] rounded-xl border border-[#233154] text-center">
+          <div class="text-[11px] font-semibold text-slate-400 uppercase">24-Hour Diff</div>
+          <div id="matrix24hPct" class="text-xl font-bold font-mono my-1 text-slate-300">--</div>
+          <div id="matrix24hUsd" class="text-[11px] font-mono text-slate-500">--</div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- CHART & SELLING CALCULATOR -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- REAL-TIME PRICE CHART -->
+      <div class="lg:col-span-2 card">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[#233154] pb-3 mb-4">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-chart-area text-emerald-400"></i>
+            <h2 class="font-bold text-sm text-white">Beldex Live Rate & 30m Comparison Trend</h2>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="flex rounded-lg bg-[#0d1322] p-1 border border-[#233154] text-xs">
+              <button id="chartTf1h" class="px-2 py-1 rounded bg-blue-600 text-white font-medium">1H</button>
+              <button id="chartTf6h" class="px-2 py-1 rounded text-slate-400 hover:text-white font-medium">6H</button>
+              <button id="chartTf24h" class="px-2 py-1 rounded text-slate-400 hover:text-white font-medium">24H</button>
+            </div>
+            <button id="btnCurrencyToggle" class="btn btn-secondary text-xs px-2.5 py-1">
+              <span id="curToggleText">USD ($)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Canvas -->
+        <div class="relative h-[280px] w-full">
+          <canvas id="priceChart"></canvas>
+        </div>
+      </div>
+
+      <!-- SELLING CALCULATOR & LADDER -->
+      <div class="card flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between border-b border-[#233154] pb-3 mb-3">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-calculator text-amber-400"></i>
+              <h2 class="font-bold text-sm text-white">Selling & Profit Calculator</h2>
+            </div>
+            <span class="badge badge-blue text-[10px]">Liquidate</span>
+          </div>
+
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-400 mb-1">Your Beldex Coin Holdings:</label>
+              <div class="relative">
+                <input id="calcHoldingsInput" type="number" step="100" class="input-field pr-16 font-mono font-bold" value="10000">
+                <span class="absolute right-3 top-2 text-xs font-bold text-slate-400">BDX</span>
+              </div>
+            </div>
+
+            <!-- Target Profit Ladder Table -->
+            <div class="text-xs font-semibold text-slate-400 pt-1">Potential Sell Price Ladder:</div>
+            <div class="space-y-1.5 font-mono text-xs">
+              
+              <div class="flex justify-between items-center p-2 rounded bg-[#0d1322] border border-[#233154]">
+                <span class="text-slate-400 font-sans">Current Price:</span>
+                <span id="ladderCur" class="font-bold text-white">$0.00 / ₹0.00</span>
+              </div>
+
+              <div class="flex justify-between items-center p-2 rounded bg-emerald-950/20 border border-emerald-500/20">
+                <span class="text-emerald-400 font-sans font-semibold">+5% Surge Target:</span>
+                <span id="ladder5pct" class="font-bold text-emerald-400">$0.00 / ₹0.00</span>
+              </div>
+
+              <div class="flex justify-between items-center p-2 rounded bg-emerald-950/30 border border-emerald-500/30">
+                <span class="text-emerald-300 font-sans font-semibold">+10% Surge Target:</span>
+                <span id="ladder10pct" class="font-bold text-emerald-300">$0.00 / ₹0.00</span>
+              </div>
+
+              <div class="flex justify-between items-center p-2 rounded bg-emerald-950/40 border border-emerald-500/40">
+                <span class="text-emerald-200 font-sans font-semibold">+25% Peak Demand:</span>
+                <span id="ladder25pct" class="font-bold text-emerald-200">$0.00 / ₹0.00</span>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-4 border-t border-[#233154]">
+          <a href="https://nexus.vin" target="_blank" class="btn btn-success w-full text-xs font-bold py-2.5">
+            <i class="fa-solid fa-arrow-up-right-dots"></i>
+            <span>Sell on Nexus.vin</span>
+          </a>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- NOTIFICATION CHANNELS & ALERT LOG -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- CHANNELS STATUS & DIRECT TEST BUTTONS -->
+      <div class="card">
+        <div class="flex items-center justify-between border-b border-[#233154] pb-3 mb-4">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-bell text-amber-400"></i>
+            <h2 class="font-bold text-sm text-white">Notification Channels</h2>
+          </div>
+          <span class="text-xs text-slate-400">Verify</span>
+        </div>
+
+        <div class="space-y-3">
+          
+          <!-- SMS Channel -->
+          <div class="p-3 bg-[#0d1322] rounded-xl border border-[#233154] flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400">
+                <i class="fa-solid fa-comment-sms"></i>
+              </div>
+              <div>
+                <div class="text-xs font-bold text-white">SMS Alert</div>
+                <div id="smsStatusText" class="text-[11px] text-slate-400">Twilio / Fast2SMS</div>
+              </div>
+            </div>
+            <button onclick="testChannel('sms')" class="btn btn-secondary text-[11px] px-2.5 py-1">
+              Test SMS
+            </button>
+          </div>
+
+          <!-- Email Channel -->
+          <div class="p-3 bg-[#0d1322] rounded-xl border border-[#233154] flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                <i class="fa-solid fa-envelope"></i>
+              </div>
+              <div>
+                <div class="text-xs font-bold text-white">Email (SMTP)</div>
+                <div id="emailStatusText" class="text-[11px] text-slate-400">Gmail / Outlook</div>
+              </div>
+            </div>
+            <button onclick="testChannel('email')" class="btn btn-secondary text-[11px] px-2.5 py-1">
+              Test Email
+            </button>
+          </div>
+
+          <!-- Telegram Channel -->
+          <div class="p-3 bg-[#0d1322] rounded-xl border border-[#233154] flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-lg bg-sky-500/20 flex items-center justify-center text-sky-400">
+                <i class="fa-brands fa-telegram"></i>
+              </div>
+              <div>
+                <div class="text-xs font-bold text-white">Telegram Bot</div>
+                <div id="telegramStatusText" class="text-[11px] text-slate-400">Instant Push</div>
+              </div>
+            </div>
+            <button onclick="testChannel('telegram')" class="btn btn-secondary text-[11px] px-2.5 py-1">
+              Test Telegram
+            </button>
+          </div>
+
+          <!-- Discord Webhook -->
+          <div class="p-3 bg-[#0d1322] rounded-xl border border-[#233154] flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+                <i class="fa-brands fa-discord"></i>
+              </div>
+              <div>
+                <div class="text-xs font-bold text-white">Discord Webhook</div>
+                <div id="discordStatusText" class="text-[11px] text-slate-400">Channel Alerts</div>
+              </div>
+            </div>
+            <button onclick="testChannel('discord')" class="btn btn-secondary text-[11px] px-2.5 py-1">
+              Test Discord
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- RECENT ALERTS SENT LOG -->
+      <div class="lg:col-span-2 card">
+        <div class="flex items-center justify-between border-b border-[#233154] pb-3 mb-4">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-clock-rotate-left text-blue-400"></i>
+            <h2 class="font-bold text-sm text-white">Recent Dispatched Alerts Log</h2>
+          </div>
+          <span id="alertsCountBadge" class="badge badge-blue text-[10px]">0 Alerts</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead>
+              <tr class="text-slate-400 border-b border-[#233154]">
+                <th class="pb-2 font-semibold">Time</th>
+                <th class="pb-2 font-semibold">Type</th>
+                <th class="pb-2 font-semibold">30m Diff</th>
+                <th class="pb-2 font-semibold">Price (USD / INR)</th>
+                <th class="pb-2 font-semibold">Channels</th>
+                <th class="pb-2 font-semibold">Status</th>
+              </tr>
+            </thead>
+            <tbody id="alertsTableBody" class="divide-y divide-[#1e293b]">
+              <tr>
+                <td colspan="6" class="py-6 text-center text-slate-500">
+                  No alerts triggered yet. Sentinel is monitoring 24/7 for 30m high demand price surges.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ======================================================== -->
+  <!-- MODAL 1: SETTINGS & ALERT CONFIGURATION -->
+  <!-- ======================================================== -->
+  <div id="settingsModal" class="modal-overlay">
+    <div class="modal-container p-6">
+      
+      <div class="flex items-center justify-between border-b border-[#233154] pb-3 mb-4">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-sliders text-blue-400"></i>
+          <h3 class="font-bold text-base text-white">Alerts & Sentinel Settings</h3>
+        </div>
+        <button id="btnCloseSettings" class="text-slate-400 hover:text-white text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form id="settingsForm" class="space-y-5">
+        
+        <!-- MONITORING THRESHOLDS -->
+        <div>
+          <h4 class="text-xs font-bold text-blue-400 uppercase tracking-wider mb-2">1. 30-Minute Surge & Target Thresholds</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">30m Surge Threshold (%):</label>
+              <input id="cfgSurgePct" type="number" step="0.5" class="input-field" placeholder="3.0">
+              <span class="text-[10px] text-slate-400">Alert triggers when 30m price spikes by this %</span>
+            </div>
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">Alert Cooldown (Minutes):</label>
+              <input id="cfgCooldown" type="number" class="input-field" placeholder="15">
+              <span class="text-[10px] text-slate-400">Minimum time between alerts</span>
+            </div>
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">Target Sell Price (USD $):</label>
+              <input id="cfgTargetUsd" type="number" step="0.001" class="input-field" placeholder="0.0800">
+              <span class="text-[10px] text-slate-400">Optional: alert when price reaches this level</span>
+            </div>
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">Target Sell Price (INR ₹):</label>
+              <input id="cfgTargetInr" type="number" step="0.1" class="input-field" placeholder="7.50">
+              <span class="text-[10px] text-slate-400">Optional: target level in Indian Rupees</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- TELEGRAM BOT CONFIG -->
+        <div class="border-t border-[#233154] pt-4">
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-xs font-bold text-sky-400 uppercase tracking-wider">2. Telegram Bot Notifications</h4>
+            <label class="flex items-center gap-2 cursor-pointer text-xs">
+              <input id="cfgTgEnabled" type="checkbox" class="w-4 h-4 rounded text-sky-600">
+              <span>Enable Telegram</span>
+            </label>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">Bot Token:</label>
+              <input id="cfgTgToken" type="text" class="input-field font-mono" placeholder="123456789:ABCdefGhI...">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">Chat ID:</label>
+              <input id="cfgTgChatId" type="text" class="input-field font-mono" placeholder="-1001234567 or user ID">
+            </div>
+          </div>
+        </div>
+
+        <!-- EMAIL (SMTP) CONFIG -->
+        <div class="border-t border-[#233154] pt-4">
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-xs font-bold text-emerald-400 uppercase tracking-wider">3. Email (SMTP / Gmail) Notifications</h4>
+            <label class="flex items-center gap-2 cursor-pointer text-xs">
+              <input id="cfgEmailEnabled" type="checkbox" class="w-4 h-4 rounded text-emerald-600">
+              <span>Enable Email</span>
+            </label>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">Recipient Email (Send Alert To):</label>
+              <input id="cfgEmailTo" type="email" class="input-field" placeholder="your_email@gmail.com">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">SMTP Host:</label>
+              <input id="cfgSmtpHost" type="text" class="input-field" placeholder="smtp.gmail.com">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">SMTP User / From:</label>
+              <input id="cfgSmtpUser" type="text" class="input-field" placeholder="alert_sender@gmail.com">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">SMTP Password / App Password:</label>
+              <input id="cfgSmtpPass" type="password" class="input-field" placeholder="••••••••••••">
+            </div>
+          </div>
+        </div>
+
+        <!-- SMS (TWILIO / FAST2SMS) CONFIG -->
+        <div class="border-t border-[#233154] pt-4">
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-xs font-bold text-amber-400 uppercase tracking-wider">4. SMS Notifications</h4>
+            <label class="flex items-center gap-2 cursor-pointer text-xs">
+              <input id="cfgSmsEnabled" type="checkbox" class="w-4 h-4 rounded text-amber-600">
+              <span>Enable SMS</span>
+            </label>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">Provider:</label>
+              <select id="cfgSmsProvider" class="input-field">
+                <option value="twilio">Twilio SMS</option>
+                <option value="fast2sms">Fast2SMS (India)</option>
+                <option value="webhook">Custom SMS Webhook</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">Recipient Phone Number(s):</label>
+              <input id="cfgSmsTo" type="text" class="input-field font-mono" placeholder="+919876543210">
+            </div>
+          </div>
+          <!-- Twilio fields -->
+          <div id="twilioFields" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[11px] text-slate-400 mb-1">Twilio Account SID:</label>
+              <input id="cfgTwilioSid" type="text" class="input-field font-mono text-xs">
+            </div>
+            <div>
+              <label class="block text-[11px] text-slate-400 mb-1">Twilio Auth Token:</label>
+              <input id="cfgTwilioToken" type="password" class="input-field font-mono text-xs">
+            </div>
+            <div>
+              <label class="block text-[11px] text-slate-400 mb-1">Twilio From Number:</label>
+              <input id="cfgTwilioFrom" type="text" class="input-field font-mono text-xs">
+            </div>
+          </div>
+          <!-- Fast2SMS fields -->
+          <div id="fast2smsFields" class="hidden">
+            <label class="block text-[11px] text-slate-400 mb-1">Fast2SMS API Key:</label>
+            <input id="cfgFast2smsKey" type="password" class="input-field font-mono text-xs">
+          </div>
+        </div>
+
+        <!-- DISCORD CONFIG -->
+        <div class="border-t border-[#233154] pt-4">
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-xs font-bold text-indigo-400 uppercase tracking-wider">5. Discord Webhook</h4>
+            <label class="flex items-center gap-2 cursor-pointer text-xs">
+              <input id="cfgDiscordEnabled" type="checkbox" class="w-4 h-4 rounded text-indigo-600">
+              <span>Enable Discord</span>
+            </label>
+          </div>
+          <div>
+            <input id="cfgDiscordUrl" type="text" class="input-field font-mono text-xs" placeholder="https://discord.com/api/webhooks/...">
+          </div>
+        </div>
+
+        <div class="border-t border-[#233154] pt-4 flex justify-end gap-3">
+          <button type="button" id="btnCancelSettings" class="btn btn-secondary text-xs">Cancel</button>
+          <button type="submit" class="btn btn-primary text-xs px-5">Save Configuration</button>
+        </div>
+
+      </form>
+
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL 2: NEXUS.VIN COMPANION & BOOKMARKLET -->
+  <!-- ======================================================== -->
+  <div id="nexusModal" class="modal-overlay">
+    <div class="modal-container p-6">
+      
+      <div class="flex items-center justify-between border-b border-[#233154] pb-3 mb-4">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-link text-indigo-400"></i>
+          <h3 class="font-bold text-base text-white">Nexus.vin Companion & 1-Click Sync</h3>
+        </div>
+        <button id="btnCloseNexusModal" class="text-slate-400 hover:text-white text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs text-slate-300">
+        <p>
+          Because <strong>nexus.vin</strong> is protected by Cloudflare Turnstile bot verification, 
+          the cleanest, most compliant way to synchronize your authenticated account rate is via the 
+          <strong>Nexus Sentinel Companion Bookmarklet</strong>.
+        </p>
+
+        <div class="p-4 bg-[#0d1322] rounded-xl border border-indigo-500/30 space-y-3">
+          <div class="font-bold text-indigo-400 text-sm flex items-center gap-2">
+            <i class="fa-solid fa-bookmark"></i>
+            <span>1-Click Bookmarklet</span>
+          </div>
+          <p class="text-slate-400">
+            Drag the button below to your browser bookmarks bar (or click "Copy Code" to create a bookmark manually):
+          </p>
+          <div class="flex items-center gap-3">
+            <a id="bookmarkletAnchor" href="#" class="btn btn-primary text-xs font-bold py-2 px-4 shadow-lg shadow-blue-500/20">
+              📌 Sync Nexus Rate
+            </a>
+            <button id="btnCopyBookmarklet" class="btn btn-secondary text-xs">
+              <i class="fa-solid fa-copy"></i>
+              <span>Copy JavaScript Code</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="p-3 bg-blue-950/30 rounded-lg border border-blue-500/20 space-y-1">
+          <div class="font-bold text-blue-400">How to use on Nexus:</div>
+          <ol class="list-decimal list-inside space-y-1 text-slate-300">
+            <li>Log into your account on <strong>https://nexus.vin</strong> in Chrome, Firefox, Safari or Edge.</li>
+            <li>Click the <strong>📌 Sync Nexus Rate</strong> bookmark in your browser bar.</li>
+            <li>The rate is instantly detected and transmitted to this Sentinel dashboard!</li>
+          </ol>
+        </div>
+
+        <!-- Manual Rate Override -->
+        <div class="border-t border-[#233154] pt-3">
+          <div class="font-bold text-white mb-2">Or Enter Current Nexus Rate Manually:</div>
+          <div class="flex gap-2">
+            <input id="modalManualRateInput" type="number" step="0.0001" placeholder="e.g. 0.0750 USD or 7.00 INR" class="input-field font-mono">
+            <button id="btnSubmitManualRate" class="btn btn-primary whitespace-nowrap text-xs">Update Rate</button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL 3: SURGE SIMULATOR -->
+  <!-- ======================================================== -->
+  <div id="simulateModal" class="modal-overlay">
+    <div class="modal-container p-6 max-w-md">
+      
+      <div class="flex items-center justify-between border-b border-[#233154] pb-3 mb-4">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-bolt-lightning text-emerald-400"></i>
+          <h3 class="font-bold text-base text-white">Simulate 30m Price Surge</h3>
+        </div>
+        <button id="btnCloseSimulateModal" class="text-slate-400 hover:text-white text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs">
+        <p class="text-slate-300">
+          Simulate an immediate high demand price surge over a 30-minute interval to test audio chimes and dispatch alerts to your phone and email.
+        </p>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-400 mb-1">Select Surge Percentage:</label>
+          <div class="grid grid-cols-3 gap-2">
+            <button type="button" class="btn btn-secondary sim-pct-btn text-xs py-2 active" data-pct="5.0">+5.0%</button>
+            <button type="button" class="btn btn-secondary sim-pct-btn text-xs py-2" data-pct="10.0">+10.0%</button>
+            <button type="button" class="btn btn-secondary sim-pct-btn text-xs py-2" data-pct="25.0">+25.0%</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-400 mb-1">Or Custom Surge %:</label>
+          <input id="simCustomPct" type="number" step="0.1" value="7.5" class="input-field font-mono">
+        </div>
+
+        <label class="flex items-center gap-2 cursor-pointer text-slate-300">
+          <input id="simTriggerAlertsCheck" type="checkbox" checked class="w-4 h-4 rounded text-emerald-500">
+          <span>Trigger real alerts (SMS, Email, Telegram) if enabled</span>
+        </label>
+
+        <button id="btnExecuteSimulation" class="btn btn-success w-full text-xs font-bold py-2.5">
+          <i class="fa-solid fa-fire"></i>
+          <span>Execute Simulation Now</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Audio Chime Element (Synthesized via Web Audio API) -->
+  <script src="app.js"></script>
+</body>
+</html>
