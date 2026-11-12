@@ -166,8 +166,9 @@ async def cmd_monitor(interval_sec: int):
                 analysis = await rate_analyzer.analyze_current_rate()
                 if analysis:
                     diff_str = f"{analysis.diff_30m_pct:+.2f}%" if analysis.diff_30m_pct is not None else "Init"
+                    diff10_str = f"{analysis.diff_10m.diff_pct:+.2f}%" if (analysis.diff_10m and analysis.diff_10m.diff_pct is not None) else "Init"
                     timestamp_str = time.strftime("%H:%M:%S")
-                    print(f"[{timestamp_str}] BDX: ${analysis.current_price_usd:.4f} (₹{analysis.current_price_inr:.2f}) | 30m Diff: {diff_str} | Signal: {analysis.recommendation}")
+                    print(f"[{timestamp_str}] BDX: ₹{analysis.current_price_inr:.2f} (${analysis.current_price_usd:.4f}) | 10m Diff: {diff10_str} | 30m Diff: {diff_str} | Signal: {analysis.recommendation}")
                     
                     if analysis.should_trigger_alert:
                         print(f"{COLOR_BOLD}{COLOR_GREEN}🚨 DISPATCHING HIGH DEMAND RATE ALERTS!{COLOR_RESET}")
@@ -219,7 +220,7 @@ def main():
 
     # monitor
     mon_p = subparsers.add_parser("monitor", help="Run 24/7 continuous rate monitor in terminal")
-    mon_p.add_argument("--interval", type=int, default=30, help="Poll interval in seconds (default: 30)")
+    mon_p.add_argument("--interval", type=int, default=600, help="Poll interval in seconds (default: 600s / 10m)")
 
     # test-alert
     test_p = subparsers.add_parser("test-alert", help="Send a test notification")

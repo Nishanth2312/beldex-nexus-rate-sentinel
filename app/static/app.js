@@ -275,6 +275,7 @@ function updateHeroDisplay(analysis) {
 
   // Multi-Timeframe Matrix in INR
   updateMatrixCell('5m', analysis.diff_5m);
+  updateMatrixCell('10m', analysis.diff_10m);
   updateMatrixCell('15m', analysis.diff_15m);
   updateMatrixCell('30m', { diff_pct: analysis.diff_30m_pct, diff_inr: analysis.diff_30m_inr });
   updateMatrixCell('1h', analysis.diff_1h);
@@ -1121,19 +1122,70 @@ document.addEventListener('DOMContentLoaded', () => {
     Notification.requestPermission();
   }
 
-  // Polling loop
+  // --------------------------------------------------------------------------
+  // 10-MINUTE UPDATE CADENCE & LIVE COUNTDOWN TIMER (Update 10m once = 600s)
+  // --------------------------------------------------------------------------
+  const UPDATE_CADENCE_SECONDS = 600; // 10 minutes
+  let secondsUntilNextUpdate = UPDATE_CADENCE_SECONDS;
+
+  function formatCountdown(sec) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+
+  function updateCountdownUI() {
+    const timerElem = document.getElementById('countdownTimer');
+    if (timerElem) {
+      timerElem.textContent = formatCountdown(secondsUntilNextUpdate);
+    }
+  }
+
+  async function execute10mUpdateCycle() {
+    secondsUntilNextUpdate = UPDATE_CADENCE_SECONDS;
+    updateCountdownUI();
+    const scanIcon = document.getElementById('scanIcon');
+    if (scanIcon) scanIcon.classList.add('fa-spin');
+
+    try {
+      if (isStaticHosted) {
+        await fetchDirectMarket();
+      } else {
+        const res = await fetch('/api/rates/scan-now', { method: 'POST' });
+        if (!res.ok) {
+          await fetchDirectMarket();
+        }
+      }
+      showToast('🔄 10-minute rate update completed!', 'info');
+    } catch (e) {
+      await fetchDirectMarket();
+    } finally {
+      if (scanIcon) setTimeout(() => scanIcon.classList.remove('fa-spin'), 600);
+    }
+  }
+
+  // Initial load
   if (isStaticHosted) {
     fetchDirectMarket();
-    setInterval(fetchDirectMarket, 30000);
   } else {
     fetch('/api/rates/current')
       .then(r => r.json())
       .then(d => updateHeroDisplay(d))
       .catch(() => {
         fetchDirectMarket();
-        setInterval(fetchDirectMarket, 30000);
       });
   }
+  updateCountdownUI();
+
+  // 1-second interval ticker for countdown
+  setInterval(() => {
+    secondsUntilNextUpdate--;
+    if (secondsUntilNextUpdate <= 0) {
+      execute10mUpdateCycle();
+    } else {
+      updateCountdownUI();
+    }
+  }, 1000);
 
   // Audio Toggle
   document.getElementById('btnAudioToggle').addEventListener('click', () => {
@@ -1151,8 +1203,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Force Scan
+  // Force Scan (Resets 10m countdown)
   document.getElementById('btnScanNow').addEventListener('click', async () => {
+    secondsUntilNextUpdate = UPDATE_CADENCE_SECONDS;
+    updateCountdownUI();
     const icon = document.getElementById('scanIcon');
     icon.classList.add('fa-spin');
     try {

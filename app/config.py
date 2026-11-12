@@ -16,12 +16,12 @@ class Settings(BaseSettings):
     debug: bool = False
     
     # Monitoring Engine
-    poll_interval_seconds: int = 30
-    diff_window_minutes: int = 30
-    surge_threshold_percent_30m: float = 3.0  # Alert when 30m increase >= 3%
+    poll_interval_seconds: int = 600          # Update cadence: 10 minutes once (600s)
+    diff_window_minutes: int = 10             # Primary diff window: 10m
+    surge_threshold_percent_30m: float = 3.0  # Alert when increase >= 3%
     target_sell_price_usd: float = 0.0        # 0 = disabled
     target_sell_price_inr: float = 0.0        # 0 = disabled
-    cooldown_minutes: int = 15                # Minimum minutes between identical alerts
+    cooldown_minutes: int = 10                # Cooldown: 10 minutes between alerts
     user_holdings_bdx: float = 10000.0        # Used to calculate sell value
     
     # Primary Market Sources

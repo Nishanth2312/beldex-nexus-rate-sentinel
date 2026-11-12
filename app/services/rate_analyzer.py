@@ -29,8 +29,9 @@ class RateAnalysis(BaseModel):
     diff_30m_inr: Optional[float] = None
     diff_30m_pct: Optional[float] = None
     
-    # Supplementary Windows
+    # Supplementary Windows (including 10m update window)
     diff_5m: Optional[WindowDiff] = None
+    diff_10m: Optional[WindowDiff] = None
     diff_15m: Optional[WindowDiff] = None
     diff_1h: Optional[WindowDiff] = None
     diff_24h: Optional[WindowDiff] = None
@@ -123,6 +124,7 @@ class RateAnalyzerService:
 
         # Calculate Windows
         diff_5m = await self.calculate_window_diff(cur_usd, cur_inr, now, 5, "5m", source=source)
+        diff_10m = await self.calculate_window_diff(cur_usd, cur_inr, now, 10, "10m", source=source)
         diff_15m = await self.calculate_window_diff(cur_usd, cur_inr, now, 15, "15m", source=source)
         diff_30m = await self.calculate_window_diff(cur_usd, cur_inr, now, 30, "30m", source=source)
         diff_1h = await self.calculate_window_diff(cur_usd, cur_inr, now, 60, "1h", source=source)
@@ -134,6 +136,13 @@ class RateAnalyzerService:
         reasons: List[str] = []
         demand_level = "NORMAL"
         recommendation = "HOLD / MONITOR"
+
+        # Check 10m Surge
+        if diff_10m.diff_pct is not None and diff_10m.diff_pct >= threshold_pct:
+            is_surge = True
+            reasons.append(f"10-Minute Price Surge: +{diff_10m.diff_pct:.2f}% (Threshold: {threshold_pct:.1f}%)")
+            demand_level = "HIGH DEMAND"
+            recommendation = "CONSIDER SELLING (High 10m Demand Surge)"
 
         # Check 30m Surge
         if diff_30m.diff_pct is not None:
@@ -194,6 +203,7 @@ class RateAnalyzerService:
             diff_30m_inr=diff_30m.diff_inr,
             diff_30m_pct=diff_30m.diff_pct,
             diff_5m=diff_5m,
+            diff_10m=diff_10m,
             diff_15m=diff_15m,
             diff_1h=diff_1h,
             diff_24h=diff_24h,
