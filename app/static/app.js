@@ -1,16 +1,11 @@
 /**
- * Beldex Nexus Rate Sentinel Frontend Application Logic
- * Supports Dual Mode:
- *   1. Full-Stack Mode: Connects to local FastAPI backend via WebSocket & REST.
- *   2. GitHub Pages / Static Mode: Directly tracks live Gate.io & CoinGecko feeds in browser,
- *      maintains rolling 30m localStorage history, triggers audio chimes, dispatches browser-based
- *      Telegram/Discord alerts, and runs the interactive surge simulator!
+ * Beldex Nexus Rate Sentinel Frontend Application Logic (INR Primary + Admin Access Control)
  */
 
 // State
 let ws = null;
 let priceChart = null;
-let currentCurrency = 'USD'; // 'USD' or 'INR'
+let currentCurrency = 'INR'; // Locked & defaulted to INR (₹)
 let activeTimeframe = 1; // hours
 let audioAlertEnabled = true;
 let chartHistoryData = [];
@@ -26,6 +21,14 @@ let latestNexusState = {
 };
 let audioContext = null;
 
+// Admin Authentication State
+let adminToken = localStorage.getItem('beldex_admin_token') || null;
+let isAdmin = false;
+
+// Default Admin Credentials (for UI reference & static demo verification)
+const DEFAULT_ADMIN_USER = "admin";
+const DEFAULT_ADMIN_PASS = "Admin@Beldex2026!";
+
 // Detect static GitHub Pages environment
 const isStaticHosted = window.location.hostname.includes('github.io') || 
                        window.location.protocol === 'file:' || 
@@ -35,7 +38,7 @@ let clientSettings = {
   surge_threshold_percent_30m: 3.0,
   cooldown_minutes: 15,
   target_sell_price_usd: 0.0,
-  target_sell_price_inr: 0.0,
+  target_sell_price_inr: 7.50,
   user_holdings_bdx: 10000.0,
   telegram_enabled: false,
   telegram_bot_token: '',
@@ -119,7 +122,7 @@ function showToast(message, type = 'info') {
 }
 
 // Format numbers
-function formatPrice(val, decimals = 4) {
+function formatPrice(val, decimals = 2) {
   if (val === null || val === undefined || isNaN(val)) return '--';
   return parseFloat(val).toFixed(decimals);
 }
@@ -131,45 +134,106 @@ function formatTime(epochSec) {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-// UI Updaters
+// --------------------------------------------------------------------------
+// ADMIN AUTHENTICATION HELPERS
+// --------------------------------------------------------------------------
+function updateAdminUI() {
+  const banner = document.getElementById('adminActiveBanner');
+  const lockIcon = document.getElementById('adminLockIcon');
+  const btnText = document.getElementById('adminBtnText');
+
+  if (isAdmin) {
+    if (banner) banner.classList.remove('hidden');
+    if (lockIcon) lockIcon.className = "fa-solid fa-shield-halved text-emerald-400";
+    if (btnText) btnText.textContent = "Admin Active (Logout)";
+  } else {
+    if (banner) banner.classList.add('hidden');
+    if (lockIcon) lockIcon.className = "fa-solid fa-lock text-amber-400";
+    if (btnText) btnText.textContent = "Admin Login";
+  }
+}
+
+async function checkAdminSession() {
+  if (!adminToken) {
+    isAdmin = false;
+    updateAdminUI();
+    return;
+  }
+
+  if (isStaticHosted) {
+    // In static mode, verify token presence
+    isAdmin = true;
+    updateAdminUI();
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/auth/me', {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+    if (res.ok) {
+      isAdmin = true;
+    } else {
+      isAdmin = false;
+      adminToken = null;
+      localStorage.removeItem('beldex_admin_token');
+    }
+  } catch (e) {
+    // Backend offline: keep existing session if present
+    isAdmin = Boolean(adminToken);
+  }
+  updateAdminUI();
+}
+
+function promptAdminLogin(reason = "Access restricted to Administrator alone.") {
+  showToast(`🔒 ${reason}`, "info");
+  const modal = document.getElementById('adminLoginModal');
+  if (modal) modal.classList.add('active');
+}
+
+// --------------------------------------------------------------------------
+// UI UPDATERS (ALL INR PRIMARY)
+// --------------------------------------------------------------------------
 function updateHeroDisplay(analysis) {
   if (!analysis) return;
   latestAnalysis = analysis;
 
-  const curUsd = analysis.current_price_usd;
   const curInr = analysis.current_price_inr;
-  const pastUsd = analysis.price_30m_usd;
+  const curUsd = analysis.current_price_usd;
   const pastInr = analysis.price_30m_inr;
+  const pastUsd = analysis.price_30m_usd;
   const diffPct = analysis.diff_30m_pct;
-  const diffUsd = analysis.diff_30m_usd;
   const diffInr = analysis.diff_30m_inr;
+  const diffUsd = analysis.diff_30m_usd;
 
-  document.getElementById('heroCurUsd').textContent = '$' + formatPrice(curUsd, 4);
+  // Primary rate in INR
   document.getElementById('heroCurInr').textContent = '₹' + formatPrice(curInr, 2);
+  document.getElementById('heroCurUsd').textContent = `($${formatPrice(curUsd, 4)} USD)`;
 
-  if (pastUsd !== null && pastUsd !== undefined) {
-    document.getElementById('heroPastUsd').textContent = '$' + formatPrice(pastUsd, 4);
+  if (pastInr !== null && pastInr !== undefined) {
     document.getElementById('heroPastInr').textContent = '₹' + formatPrice(pastInr, 2);
+    document.getElementById('heroPastUsd').textContent = `($${formatPrice(pastUsd, 4)} USD)`;
   }
 
-  // 30m Diff formatting
-  const diffElem = document.getElementById('diff30mPercent');
+  // 30m Diff formatting (INR PRIMARY)
+  const diffInrElem = document.getElementById('diff30mInr');
+  const diffPctElem = document.getElementById('diff30mPercent');
   const indElem = document.getElementById('diff30mIndicator');
   const diffUsdElem = document.getElementById('diff30mUsd');
-  const diffInrElem = document.getElementById('diff30mInr');
 
   if (diffPct !== null && diffPct !== undefined) {
     const isPositive = diffPct >= 0;
     const sign = isPositive ? '+' : '';
-    diffElem.textContent = `${sign}${diffPct.toFixed(2)}%`;
-    diffElem.className = `text-4xl md:text-5xl font-black font-mono ${isPositive ? 'rate-surge-positive' : 'rate-surge-negative'}`;
+    
+    diffInrElem.textContent = `${sign}₹${Math.abs(diffInr || 0).toFixed(2)}`;
+    diffPctElem.textContent = `(${sign}${diffPct.toFixed(2)}%)`;
+    diffPctElem.className = `text-2xl md:text-3xl font-black font-mono ${isPositive ? 'rate-surge-positive' : 'rate-surge-negative'}`;
 
     indElem.innerHTML = isPositive
       ? '<i class="fa-solid fa-arrow-trend-up text-emerald-400"></i>'
       : '<i class="fa-solid fa-arrow-trend-down text-rose-400"></i>';
 
-    diffUsdElem.textContent = `${sign}$${Math.abs(diffUsd || 0).toFixed(4)}`;
-    diffInrElem.textContent = `${sign}₹${Math.abs(diffInr || 0).toFixed(2)}`;
+    diffUsdElem.textContent = `${sign}$${Math.abs(diffUsd || 0).toFixed(4)} USD`;
 
     // Signal banner
     const banner = document.getElementById('signalBanner');
@@ -184,53 +248,60 @@ function updateHeroDisplay(analysis) {
       signalTitle.textContent = "🚨 " + (analysis.recommendation || "STRONG SELL OPPORTUNITY");
       signalDesc.textContent = (analysis.alert_reasons && analysis.alert_reasons.length) 
         ? analysis.alert_reasons.join(" • ") 
-        : `30-Minute Surge +${diffPct.toFixed(2)}% detected!`;
+        : `30-Minute INR Surge +${diffPct.toFixed(2)}% detected!`;
       glow.className = "absolute -right-20 -top-20 w-80 h-80 rounded-full bg-emerald-500/30 blur-3xl pointer-events-none";
     } else {
       banner.className = "mt-4 p-3 rounded-lg bg-emerald-950/40 border border-emerald-500/30 flex items-center gap-3";
       signalTitle.className = "text-xs font-bold text-emerald-400 uppercase tracking-wide";
       signalTitle.textContent = analysis.recommendation || "HOLD / MONITOR";
-      signalDesc.textContent = `30m Diff is ${sign}${diffPct.toFixed(2)}%. Sentinel will alert you when spike meets threshold.`;
+      signalDesc.textContent = `30m INR Diff is ${sign}₹${Math.abs(diffInr || 0).toFixed(2)} (${sign}${diffPct.toFixed(2)}%). Sentinel will alert you on high demand spikes.`;
       glow.className = "absolute -right-20 -top-20 w-80 h-80 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none";
     }
   }
 
-  // Portfolio
+  // Portfolio in INR
   const holdings = analysis.holdings_bdx || clientSettings.user_holdings_bdx || 10000;
+  const portInr = curInr * holdings;
+  const portUsd = curUsd * holdings;
+
   document.getElementById('heroHoldingsAmount').textContent = `${holdings.toLocaleString()} BDX`;
-  document.getElementById('heroPortUsd').textContent = `$${(curUsd * holdings).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  document.getElementById('heroPortInr').textContent = `₹${(curInr * holdings).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  document.getElementById('heroPortInr').textContent = `₹${portInr.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+  document.getElementById('heroPortUsd').textContent = `($${portUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD)`;
 
   if (analysis.profit_gain_30m_inr !== null && analysis.profit_gain_30m_inr !== undefined) {
     const pSign = analysis.profit_gain_30m_inr >= 0 ? '+' : '';
-    document.getElementById('heroPortGain').textContent = `${pSign}₹${analysis.profit_gain_30m_inr.toFixed(0)} in 30m`;
+    document.getElementById('heroPortGain').textContent = `${pSign}₹${Math.abs(analysis.profit_gain_30m_inr).toFixed(0)} in 30m`;
   }
 
-  // Multi-Timeframe Matrix
+  // Multi-Timeframe Matrix in INR
   updateMatrixCell('5m', analysis.diff_5m);
   updateMatrixCell('15m', analysis.diff_15m);
-  updateMatrixCell('30m', { diff_pct: analysis.diff_30m_pct, diff_usd: analysis.diff_30m_usd });
+  updateMatrixCell('30m', { diff_pct: analysis.diff_30m_pct, diff_inr: analysis.diff_30m_inr });
   updateMatrixCell('1h', analysis.diff_1h);
   updateMatrixCell('24h', analysis.diff_24h);
 
   document.getElementById('lastTickTime').textContent = formatTime(analysis.timestamp);
-  updateSellingLadder(curUsd, curInr);
+  updateSellingLadder(curInr, curUsd);
 }
 
 function updateMatrixCell(windowKey, diffObj) {
+  const inrElem = document.getElementById(`matrix${windowKey}Inr`);
   const pctElem = document.getElementById(`matrix${windowKey}Pct`);
-  const usdElem = document.getElementById(`matrix${windowKey}Usd`);
-  if (!pctElem || !usdElem) return;
+  if (!inrElem || !pctElem) return;
 
   if (diffObj && diffObj.diff_pct !== null && diffObj.diff_pct !== undefined) {
     const isPos = diffObj.diff_pct >= 0;
     const sign = isPos ? '+' : '';
+    const diffInrVal = diffObj.diff_inr !== undefined && diffObj.diff_inr !== null 
+      ? Math.abs(diffObj.diff_inr).toFixed(2)
+      : (Math.abs(diffObj.diff_usd || 0) * 93.85).toFixed(2);
+
+    inrElem.textContent = `${sign}₹${diffInrVal}`;
+    inrElem.className = `text-lg md:text-xl font-bold font-mono my-1 ${isPos ? 'text-emerald-400' : 'text-rose-400'}`;
     pctElem.textContent = `${sign}${diffObj.diff_pct.toFixed(2)}%`;
-    pctElem.className = `text-xl md:text-2xl font-bold font-mono my-1 ${isPos ? 'text-emerald-400' : 'text-rose-400'}`;
-    usdElem.textContent = `${sign}$${Math.abs(diffObj.diff_usd || 0).toFixed(4)}`;
   } else {
-    pctElem.textContent = '--';
-    usdElem.textContent = 'Collecting...';
+    inrElem.textContent = '--';
+    pctElem.textContent = 'Collecting...';
   }
 }
 
@@ -239,8 +310,8 @@ function updateNexusDisplay(nexus) {
   latestNexusState = nexus;
 
   const badge = document.getElementById('nexusBadge');
-  const rateDisp = document.getElementById('nexusRateDisplay');
   const inrDisp = document.getElementById('nexusInrDisplay');
+  const rateDisp = document.getElementById('nexusRateDisplay');
   const arbDisp = document.getElementById('nexusArbitrageDisplay');
   const methodDisp = document.getElementById('nexusSyncMethod');
   const lastSyncDisp = document.getElementById('nexusLastSync');
@@ -259,12 +330,12 @@ function updateNexusDisplay(nexus) {
     badge.textContent = 'Ready for Sync';
   }
 
-  if (nexus.rate_usd) {
-    rateDisp.textContent = '$' + formatPrice(nexus.rate_usd, 4);
+  if (nexus.rate_inr) {
     inrDisp.textContent = '₹' + formatPrice(nexus.rate_inr, 2);
+    rateDisp.textContent = `($${formatPrice(nexus.rate_usd, 4)} USD)`;
   } else {
-    rateDisp.textContent = 'Ready';
-    inrDisp.textContent = 'Use Companion';
+    inrDisp.textContent = '₹--';
+    rateDisp.textContent = 'Ready for sync';
   }
 
   if (nexus.premium_pct_vs_market !== null && nexus.premium_pct_vs_market !== undefined) {
@@ -277,24 +348,23 @@ function updateNexusDisplay(nexus) {
   lastSyncDisp.textContent = formatTime(nexus.last_sync_timestamp);
 }
 
-function updateSellingLadder(curUsd, curInr) {
+function updateSellingLadder(curInr, curUsd) {
   const inputElem = document.getElementById('calcHoldingsInput');
   const holdings = parseFloat(inputElem.value) || 10000;
 
   const getTierStr = (mult) => {
-    const targetUsd = curUsd * mult;
     const targetInr = curInr * mult;
     const totalInr = targetInr * holdings;
-    return `$${targetUsd.toFixed(4)} (₹${targetInr.toFixed(2)}) → ₹${totalInr.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+    return `₹${targetInr.toFixed(2)} → ₹${totalInr.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
   };
 
-  document.getElementById('ladderCur').textContent = `$${curUsd.toFixed(4)} (₹${curInr.toFixed(2)}) → ₹${(curInr * holdings).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+  document.getElementById('ladderCur').textContent = `₹${curInr.toFixed(2)} → ₹${(curInr * holdings).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
   document.getElementById('ladder5pct').textContent = getTierStr(1.05);
   document.getElementById('ladder10pct').textContent = getTierStr(1.10);
   document.getElementById('ladder25pct').textContent = getTierStr(1.25);
 }
 
-// Chart.js Setup
+// Chart.js Setup (INR PRIMARY)
 function initChart() {
   const ctx = document.getElementById('priceChart').getContext('2d');
   
@@ -304,7 +374,7 @@ function initChart() {
       labels: [],
       datasets: [
         {
-          label: 'BDX Rate',
+          label: 'BDX Rate (INR ₹)',
           data: [],
           borderColor: '#10b981',
           borderWidth: 2.5,
@@ -315,7 +385,7 @@ function initChart() {
           pointHoverRadius: 6
         },
         {
-          label: '30m Reference Level',
+          label: '30m Reference Level (INR)',
           data: [],
           borderColor: '#3b82f6',
           borderWidth: 1.5,
@@ -344,7 +414,12 @@ function initChart() {
           borderWidth: 1,
           titleColor: '#f8fafc',
           bodyColor: '#34d399',
-          padding: 10
+          padding: 10,
+          callbacks: {
+            label: function(context) {
+              return ` ${context.dataset.label}: ₹${parseFloat(context.parsed.y).toFixed(2)}`;
+            }
+          }
         }
       },
       scales: {
@@ -358,7 +433,7 @@ function initChart() {
             color: '#64748b',
             font: { size: 10 },
             callback: function(val) {
-              return currentCurrency === 'INR' ? '₹' + val.toFixed(2) : '$' + val.toFixed(4);
+              return '₹' + parseFloat(val).toFixed(2);
             }
           }
         }
@@ -377,28 +452,28 @@ function renderChartData() {
   const now = Date.now() / 1000;
   const target30mAgo = now - 1800;
 
-  // Find price ~30 mins ago
+  // Find price ~30 mins ago in INR
   let p30mVal = null;
   for (let i = chartHistoryData.length - 1; i >= 0; i--) {
     if (chartHistoryData[i].timestamp <= target30mAgo) {
-      p30mVal = currentCurrency === 'INR' ? chartHistoryData[i].price_inr : chartHistoryData[i].price_usd;
+      p30mVal = chartHistoryData[i].price_inr;
       break;
     }
   }
   if (!p30mVal && chartHistoryData.length > 0) {
-    p30mVal = currentCurrency === 'INR' ? chartHistoryData[0].price_inr : chartHistoryData[0].price_usd;
+    p30mVal = chartHistoryData[0].price_inr;
   }
 
   chartHistoryData.forEach(tick => {
     const d = new Date(tick.timestamp * 1000);
     labels.push(d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-    prices.push(currentCurrency === 'INR' ? tick.price_inr : tick.price_usd);
+    prices.push(tick.price_inr);
     ref30m.push(p30mVal);
   });
 
   priceChart.data.labels = labels;
   priceChart.data.datasets[0].data = prices;
-  priceChart.data.datasets[0].label = `BDX Rate (${currentCurrency})`;
+  priceChart.data.datasets[0].label = `BDX Rate (INR ₹)`;
   priceChart.data.datasets[1].data = ref30m;
   priceChart.update();
 }
@@ -409,10 +484,6 @@ function renderChartData() {
 async function fetchDirectMarket() {
   let p_usd = null;
   let p_inr = null;
-  let vol_usd = 0;
-  let high_24h = 0;
-  let low_24h = 0;
-  let change_24h = 0;
 
   // 1. Fetch CoinGecko
   try {
@@ -422,13 +493,9 @@ async function fetchDirectMarket() {
       if (cgData && cgData.beldex) {
         p_usd = cgData.beldex.usd;
         p_inr = cgData.beldex.inr;
-        vol_usd = cgData.beldex.usd_24h_vol || 0;
-        change_24h = cgData.beldex.usd_24h_change || 0;
       }
     }
-  } catch (e) {
-    console.debug("CoinGecko direct fetch note:", e);
-  }
+  } catch (e) {}
 
   // 2. Fetch Gate.io (CORS supported)
   try {
@@ -440,18 +507,14 @@ async function fetchDirectMarket() {
         if (!p_usd || lastGate > 0) {
           p_usd = lastGate;
           p_inr = p_inr || (lastGate * 93.85);
-          high_24h = parseFloat(gateData[0].high_24h || 0);
-          low_24h = parseFloat(gateData[0].low_24h || 0);
         }
       }
     }
-  } catch (e) {
-    console.debug("Gate.io direct fetch note:", e);
-  }
+  } catch (e) {}
 
   if (!p_usd) {
-    p_usd = 0.0710;
-    p_inr = 6.66;
+    p_usd = 0.0711;
+    p_inr = 6.68;
   }
 
   const now = Date.now() / 1000;
@@ -462,7 +525,6 @@ async function fetchDirectMarket() {
     stored = JSON.parse(localStorage.getItem('bdx_sentinel_ticks') || '[]');
   } catch (e) {}
 
-  // If no 30m tick exists, seed a baseline 30m ago so rate diff is immediately calculable!
   if (stored.length === 0) {
     stored.push({
       timestamp: now - 1800,
@@ -477,7 +539,6 @@ async function fetchDirectMarket() {
     price_inr: p_inr
   });
 
-  // Keep last 400 ticks (approx 3 hours at 30s)
   if (stored.length > 400) stored.shift();
   try {
     localStorage.setItem('bdx_sentinel_ticks', JSON.stringify(stored));
@@ -496,29 +557,29 @@ async function fetchDirectMarket() {
     }
   }
 
-  const pastUsd = tick30m ? tick30m.price_usd : p_usd;
   const pastInr = tick30m ? tick30m.price_inr : p_inr;
-  const diffUsd = p_usd - pastUsd;
+  const pastUsd = tick30m ? tick30m.price_usd : p_usd;
   const diffInr = p_inr - pastInr;
-  const diffPct = ((p_usd - pastUsd) / pastUsd) * 100.0;
+  const diffUsd = p_usd - pastUsd;
+  const diffPct = ((p_inr - pastInr) / pastInr) * 100.0;
 
   const holdings = clientSettings.user_holdings_bdx || 10000;
   const isSurge = diffPct >= clientSettings.surge_threshold_percent_30m;
-  const isTargetHit = (clientSettings.target_sell_price_usd > 0 && p_usd >= clientSettings.target_sell_price_usd) ||
-                      (clientSettings.target_sell_price_inr > 0 && p_inr >= clientSettings.target_sell_price_inr);
+  const isTargetHit = (clientSettings.target_sell_price_inr > 0 && p_inr >= clientSettings.target_sell_price_inr) ||
+                      (clientSettings.target_sell_price_usd > 0 && p_usd >= clientSettings.target_sell_price_usd);
 
   const reasons = [];
   let demandLevel = "NORMAL";
   let recommendation = "HOLD / MONITOR";
 
   if (isSurge) {
-    reasons.push(`30-Min Price Surge: +${diffPct.toFixed(2)}% (Threshold: ${clientSettings.surge_threshold_percent_30m}%)`);
+    reasons.push(`30-Min INR Surge: +${diffPct.toFixed(2)}% (+₹${Math.abs(diffInr).toFixed(2)})`);
     demandLevel = diffPct >= (clientSettings.surge_threshold_percent_30m * 2) ? "EXTREME SURGE" : "HIGH DEMAND";
     recommendation = "STRONG SELL OPPORTUNITY";
   }
 
   if (isTargetHit) {
-    reasons.push("Target Selling Price Hit!");
+    reasons.push(`Target INR Price Hit (₹${p_inr.toFixed(2)} >= ₹${clientSettings.target_sell_price_inr.toFixed(2)})!`);
     recommendation = "TARGET SELL PRICE REACHED";
   }
 
@@ -546,14 +607,12 @@ async function fetchDirectMarket() {
 
   updateHeroDisplay(analysis);
 
-  // Nexus Arbitrage
-  if (latestNexusState.rate_usd) {
-    const arb = ((latestNexusState.rate_usd - p_usd) / p_usd) * 100.0;
+  if (latestNexusState.rate_inr) {
+    const arb = ((latestNexusState.rate_inr - p_inr) / p_inr) * 100.0;
     latestNexusState.premium_pct_vs_market = arb;
     updateNexusDisplay(latestNexusState);
   }
 
-  // Trigger alert if condition met and cooldown elapsed
   if ((isSurge || isTargetHit) && (now - clientSettings.last_alert_time) > (clientSettings.cooldown_minutes * 60)) {
     clientSettings.last_alert_time = now;
     dispatchClientAlerts(analysis);
@@ -562,22 +621,21 @@ async function fetchDirectMarket() {
   return analysis;
 }
 
-// Client-side Direct Alert Dispatcher (Telegram & Discord via browser fetch)
+// Client-side Direct Alert Dispatcher
 async function dispatchClientAlerts(analysis) {
   const diffPct = analysis.diff_30m_pct.toFixed(2);
-  const curUsd = analysis.current_price_usd.toFixed(4);
   const curInr = analysis.current_price_inr.toFixed(2);
+  const curUsd = analysis.current_price_usd.toFixed(4);
   const holdings = (analysis.holdings_bdx || 10000).toLocaleString();
   const portInr = (analysis.portfolio_value_inr || 0).toLocaleString();
 
   playAlertChime();
-
   const channelsDispatched = [];
 
-  // 1. Telegram
+  // Telegram
   if (clientSettings.telegram_enabled && clientSettings.telegram_bot_token && clientSettings.telegram_chat_id) {
     try {
-      const tgText = `🚨 *BELDEX HIGH DEMAND ALERT!*\n\n📈 *30m Surge*: \`+${diffPct}%\`\n💵 *Price*: \`$${curUsd}\` (~₹${curInr})\n💼 *Holdings (${holdings} BDX)*: ~₹${portInr}\n\n💡 *Action*: High Demand Peak - Ready to sell on nexus.vin!`;
+      const tgText = `🚨 *BELDEX HIGH DEMAND ALERT!*\n\n📈 *30m Surge*: \`+${diffPct}%\`\n💵 *Price*: \`₹${curInr}\` ($${curUsd} USD)\n💼 *Holdings (${holdings} BDX)*: ~₹${portInr}\n\n💡 *Action*: High Demand Peak - Ready to sell on nexus.vin!`;
       await fetch(`https://api.telegram.org/bot${clientSettings.telegram_bot_token}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -588,12 +646,10 @@ async function dispatchClientAlerts(analysis) {
         })
       });
       channelsDispatched.push('telegram');
-    } catch (e) {
-      console.warn("Client Telegram alert error:", e);
-    }
+    } catch (e) {}
   }
 
-  // 2. Discord Webhook
+  // Discord
   if (clientSettings.discord_enabled && clientSettings.discord_webhook_url) {
     try {
       await fetch(clientSettings.discord_webhook_url, {
@@ -601,22 +657,19 @@ async function dispatchClientAlerts(analysis) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           embeds: [{
-            title: "🚨 BELDEX HIGH DEMAND ALERT",
-            description: `30-Min Surge: **+${diffPct}%**\nPrice: **$${curUsd}** (~₹${curInr})\nHoldings Value: **₹${portInr}**`,
+            title: "🚨 BELDEX HIGH DEMAND ALERT (INR)",
+            description: `30-Min Surge: **+${diffPct}%**\nRate: **₹${curInr}** ($${curUsd})\nHoldings Value: **₹${portInr}**`,
             color: 0x10B981
           }]
         })
       });
       channelsDispatched.push('discord');
-    } catch (e) {
-      console.warn("Client Discord alert error:", e);
-    }
+    } catch (e) {}
   }
 
-  // 3. Browser Notification API
   if ("Notification" in window && Notification.permission === "granted") {
     new Notification("🚨 Beldex High Demand Alert!", {
-      body: `30m Diff: +${diffPct}% | Price: $${curUsd} (₹${curInr})`
+      body: `30m Surge: +${diffPct}% | Rate: ₹${curInr}`
     });
     channelsDispatched.push('browser_push');
   }
@@ -675,7 +728,7 @@ function renderAlertsList(alerts) {
         <td class="py-2.5 font-mono text-slate-400">${formatTime(a.timestamp)}</td>
         <td class="py-2.5 font-semibold text-white uppercase">${a.alert_type}</td>
         <td class="py-2.5">${diffBadge}</td>
-        <td class="py-2.5 font-mono">$${formatPrice(a.current_price_usd, 4)} (₹${formatPrice(a.current_price_inr, 2)})</td>
+        <td class="py-2.5 font-mono font-bold text-white">₹${formatPrice(a.current_price_inr, 2)}</td>
         <td class="py-2.5">${channels || '<span class="text-slate-500">In-App Chime</span>'}</td>
         <td class="py-2.5">
           <span class="badge ${a.status === 'success' ? 'badge-green' : 'badge-amber'} text-[10px]">
@@ -687,12 +740,11 @@ function renderAlertsList(alerts) {
   }).join('');
 }
 
-// WebSocket Connection (used when connected to local backend)
+// WebSocket Connection
 function connectWebSocket() {
   if (isStaticHosted) {
-    // On GitHub Pages, set status badge and run browser polling engine
     const badge = document.getElementById('wsStatusBadge');
-    badge.textContent = 'WEB DEMO (LIVE)';
+    badge.textContent = 'WEB DEMO (INR)';
     badge.className = 'badge badge-green text-[10px]';
     return;
   }
@@ -704,7 +756,7 @@ function connectWebSocket() {
     ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
-      document.getElementById('wsStatusBadge').textContent = 'LIVE FEED';
+      document.getElementById('wsStatusBadge').textContent = 'LIVE FEED (INR)';
       document.getElementById('wsStatusBadge').className = 'badge badge-green text-[10px]';
     };
 
@@ -730,9 +782,7 @@ function connectWebSocket() {
             loadAlertsHistory();
           }
         }
-      } catch (e) {
-        console.error("WS Parse Error:", e);
-      }
+      } catch (e) {}
     };
 
     ws.onclose = () => {
@@ -740,9 +790,7 @@ function connectWebSocket() {
       document.getElementById('wsStatusBadge').className = 'badge badge-amber text-[10px]';
       setTimeout(connectWebSocket, 3000);
     };
-  } catch (e) {
-    console.debug("WS setup error:", e);
-  }
+  } catch (e) {}
 }
 
 // Load Alerts History
@@ -766,8 +814,13 @@ async function loadAlertsHistory() {
   }
 }
 
-// Test Channel
+// Test Channel (ADMIN RESTRICTED)
 window.testChannel = async function(channel) {
+  if (!isAdmin) {
+    promptAdminLogin(`Admin login required to test the ${channel.toUpperCase()} notification channel.`);
+    return;
+  }
+
   initAudio();
   showToast(`Testing ${channel.toUpperCase()} alert...`, 'info');
 
@@ -778,7 +831,7 @@ window.testChannel = async function(channel) {
         return;
       }
       try {
-        const text = "🧪 *BELDEX SENTINEL TEST ALERT (Telegram)*\n\n✅ GitHub Pages direct Telegram alerts are working properly!";
+        const text = "🧪 *BELDEX SENTINEL TEST ALERT (Telegram)*\n\n✅ GitHub Pages direct Telegram alerts in INR are working properly!";
         const res = await fetch(`https://api.telegram.org/bot${clientSettings.telegram_bot_token}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -803,7 +856,7 @@ window.testChannel = async function(channel) {
         const res = await fetch(clientSettings.discord_webhook_url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: "🧪 **BELDEX SENTINEL**: Discord Webhook test successful!" })
+          body: JSON.stringify({ content: "🧪 **BELDEX SENTINEL**: Discord Webhook test in INR successful!" })
         });
         if (res.ok) {
           playAlertChime();
@@ -815,7 +868,7 @@ window.testChannel = async function(channel) {
       return;
     } else {
       playAlertChime();
-      showToast(`📱 Note: ${channel.toUpperCase()} requires the local Python backend with SMTP/Twilio. Test running via local Sentinel service.`, 'info');
+      showToast(`📱 Note: ${channel.toUpperCase()} requires the local Python backend with Twilio/SMTP.`, 'info');
       return;
     }
   }
@@ -824,9 +877,16 @@ window.testChannel = async function(channel) {
   try {
     const res = await fetch('/api/alerts/test', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${adminToken}`
+      },
       body: JSON.stringify({ channel: channel })
     });
+    if (res.status === 401 || res.status === 403) {
+      promptAdminLogin("Admin session expired. Please re-authenticate.");
+      return;
+    }
     const data = await res.json();
     if (data.status === 'ok') {
       playAlertChime();
@@ -869,8 +929,8 @@ async function loadConfig() {
   document.getElementById('cfgSurgePct').value = clientSettings.surge_threshold_percent_30m;
   document.getElementById('thresholdDisplay').textContent = `${clientSettings.surge_threshold_percent_30m}%`;
   document.getElementById('cfgCooldown').value = clientSettings.cooldown_minutes;
-  document.getElementById('cfgTargetUsd').value = clientSettings.target_sell_price_usd || '';
   document.getElementById('cfgTargetInr').value = clientSettings.target_sell_price_inr || '';
+  document.getElementById('cfgTargetUsd').value = clientSettings.target_sell_price_usd || '';
   document.getElementById('calcHoldingsInput').value = clientSettings.user_holdings_bdx || 10000;
 
   // Channels
@@ -892,13 +952,18 @@ async function loadConfig() {
   document.getElementById('discordStatusText').textContent = clientSettings.discord_enabled ? 'Enabled' : 'Disabled';
 }
 
-// Save Settings Form
+// Save Settings Form (ADMIN RESTRICTED)
 document.getElementById('settingsForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (!isAdmin) {
+    promptAdminLogin("Admin login required to modify sentinel settings.");
+    return;
+  }
+
   clientSettings.surge_threshold_percent_30m = parseFloat(document.getElementById('cfgSurgePct').value);
   clientSettings.cooldown_minutes = parseInt(document.getElementById('cfgCooldown').value);
-  clientSettings.target_sell_price_usd = parseFloat(document.getElementById('cfgTargetUsd').value) || 0.0;
   clientSettings.target_sell_price_inr = parseFloat(document.getElementById('cfgTargetInr').value) || 0.0;
+  clientSettings.target_sell_price_usd = parseFloat(document.getElementById('cfgTargetUsd').value) || 0.0;
   clientSettings.user_holdings_bdx = parseFloat(document.getElementById('calcHoldingsInput').value) || 10000.0;
   
   clientSettings.telegram_enabled = document.getElementById('cfgTgEnabled').checked;
@@ -920,15 +985,22 @@ document.getElementById('settingsForm').addEventListener('submit', async (e) => 
 
   if (!isStaticHosted) {
     try {
-      await fetch('/api/alerts/config', {
+      const res = await fetch('/api/alerts/config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${adminToken}`
+        },
         body: JSON.stringify(clientSettings)
       });
+      if (res.status === 401 || res.status === 403) {
+        promptAdminLogin("Admin authentication required.");
+        return;
+      }
     } catch (e) {}
   }
 
-  showToast('✅ Sentinel settings saved successfully!', 'success');
+  showToast('✅ Admin configuration saved successfully!', 'success');
   document.getElementById('settingsModal').classList.remove('active');
   loadConfig();
 });
@@ -936,7 +1008,7 @@ document.getElementById('settingsForm').addEventListener('submit', async (e) => 
 // Setup Bookmarklet Code
 function setupBookmarklet() {
   const port = window.location.port || '8080';
-  const script = `javascript:(function(){try{var text=document.body.innerText;var bdxMatch=text.match(/(?:BDX|Beldex)[^0-9]*([0-9]+(?:\\.[0-9]+)?)/i);var inrMatch=text.match(/(?:₹|INR|Rs)[^0-9]*([0-9]+(?:\\.[0-9]+)?)/i);var usdMatch=text.match(/(?:\\$|USDT|USD)[^0-9]*([0-9]+(?:\\.[0-9]+)?)/i);var rate_usd=usdMatch?parseFloat(usdMatch[1]):null;var rate_inr=inrMatch?parseFloat(inrMatch[1]):null;if(!rate_usd&&!rate_inr&&bdxMatch){rate_usd=parseFloat(bdxMatch[1]);}if(!rate_usd&&!rate_inr){var promptRate=prompt("Enter current Beldex rate seen on Nexus:","0.0710");if(promptRate)rate_usd=parseFloat(promptRate);}fetch('http://localhost:${port}/api/nexus/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rate_usd:rate_usd,rate_inr:rate_inr,note:'Nexus Browser Tab ('+window.location.host+')'})}).then(r=>r.json()).then(data=>{alert('✅ Beldex Rate successfully synced to Sentinel Dashboard!\\nRate: '+(rate_usd?'$'+rate_usd:'₹'+rate_inr));}).catch(err=>{alert('❌ Could not connect to Beldex Sentinel (http://localhost:${port}).\\nMake sure the app is running!');});}catch(e){alert('Error running bookmarklet: '+e.message);}})();`;
+  const script = `javascript:(function(){try{var text=document.body.innerText;var bdxMatch=text.match(/(?:BDX|Beldex)[^0-9]*([0-9]+(?:\\.[0-9]+)?)/i);var inrMatch=text.match(/(?:₹|INR|Rs)[^0-9]*([0-9]+(?:\\.[0-9]+)?)/i);var usdMatch=text.match(/(?:\\$|USDT|USD)[^0-9]*([0-9]+(?:\\.[0-9]+)?)/i);var rate_usd=usdMatch?parseFloat(usdMatch[1]):null;var rate_inr=inrMatch?parseFloat(inrMatch[1]):null;if(!rate_usd&&!rate_inr&&bdxMatch){rate_usd=parseFloat(bdxMatch[1]);}if(!rate_usd&&!rate_inr){var promptRate=prompt("Enter current Beldex INR rate seen on Nexus:","7.00");if(promptRate)rate_inr=parseFloat(promptRate);}fetch('http://localhost:${port}/api/nexus/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rate_usd:rate_usd,rate_inr:rate_inr,note:'Nexus Browser Tab ('+window.location.host+')'})}).then(r=>r.json()).then(data=>{alert('✅ Beldex Rate successfully synced to Sentinel Dashboard!\\nRate: ₹'+(rate_inr?rate_inr:rate_usd*93.85));}).catch(err=>{alert('❌ Could not connect to Beldex Sentinel (http://localhost:${port}).\\nMake sure the app is running!');});}catch(e){alert('Error running bookmarklet: '+e.message);}})();`;
 
   const anchor = document.getElementById('bookmarkletAnchor');
   if (anchor) anchor.setAttribute('href', script);
@@ -953,12 +1025,12 @@ function setupBookmarklet() {
 // Initial Boot
 document.addEventListener('DOMContentLoaded', () => {
   initChart();
+  checkAdminSession();
   connectWebSocket();
   loadConfig();
   loadAlertsHistory();
   setupBookmarklet();
 
-  // Request browser notification permission if available
   if ("Notification" in window && Notification.permission === "default") {
     Notification.requestPermission();
   }
@@ -966,14 +1038,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Polling loop
   if (isStaticHosted) {
     fetchDirectMarket();
-    setInterval(fetchDirectMarket, 30000); // Poll every 30s
+    setInterval(fetchDirectMarket, 30000);
   } else {
-    // Fetch initial state
     fetch('/api/rates/current')
       .then(r => r.json())
       .then(d => updateHeroDisplay(d))
       .catch(() => {
-        // Fallback to browser direct mode if local backend is not responding
         fetchDirectMarket();
         setInterval(fetchDirectMarket, 30000);
       });
@@ -1002,11 +1072,11 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       if (isStaticHosted) {
         await fetchDirectMarket();
-        showToast('🔄 Live scan complete! Prices updated directly from exchanges.', 'success');
+        showToast('🔄 Live scan complete! INR prices updated directly from exchanges.', 'success');
       } else {
         const res = await fetch('/api/rates/scan-now', { method: 'POST' });
         if (res.ok) {
-          showToast('🔄 Live scan complete! Prices updated.', 'success');
+          showToast('🔄 Live scan complete! INR prices updated.', 'success');
         } else {
           await fetchDirectMarket();
           showToast('🔄 Live scan complete via direct market feed.', 'success');
@@ -1020,37 +1090,124 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Currency Toggle
-  document.getElementById('btnCurrencyToggle').addEventListener('click', () => {
-    currentCurrency = currentCurrency === 'USD' ? 'INR' : 'USD';
-    document.getElementById('curToggleText').textContent = currentCurrency === 'USD' ? 'USD ($)' : 'INR (₹)';
-    renderChartData();
-  });
-
-  // Timeframe buttons
-  ['1h', '6h', '24h'].forEach(tf => {
-    const btn = document.getElementById(`chartTf${tf}`);
-    if (btn) {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('#chartTf1h, #chartTf6h, #chartTf24h').forEach(b => {
-          b.className = 'px-2 py-1 rounded text-slate-400 hover:text-white font-medium';
-        });
-        btn.className = 'px-2 py-1 rounded bg-blue-600 text-white font-medium';
-        renderChartData();
-      });
-    }
-  });
-
   // Holdings Input
   document.getElementById('calcHoldingsInput').addEventListener('input', () => {
     if (latestAnalysis) {
-      updateSellingLadder(latestAnalysis.current_price_usd, latestAnalysis.current_price_inr);
+      updateSellingLadder(latestAnalysis.current_price_inr, latestAnalysis.current_price_usd);
     }
   });
 
-  // Modals
-  // Settings
+  // -------------------------------------------------------------
+  // ADMIN AUTHENTICATION MODAL & LOGOUT
+  // -------------------------------------------------------------
+  const adminModal = document.getElementById('adminLoginModal');
+  const openAdminModal = () => {
+    document.getElementById('adminLoginError').classList.add('hidden');
+    adminModal.classList.add('active');
+  };
+  const closeAdminModal = () => adminModal.classList.remove('active');
+
+  document.getElementById('btnAdminLoginToggle').addEventListener('click', () => {
+    if (isAdmin) {
+      // Logout
+      isAdmin = false;
+      adminToken = null;
+      localStorage.removeItem('beldex_admin_token');
+      updateAdminUI();
+      showToast('👋 Administrator logged out. Dashboard is in guest view mode.', 'info');
+    } else {
+      openAdminModal();
+    }
+  });
+
+  const quickLogoutBtn = document.getElementById('btnQuickLogout');
+  if (quickLogoutBtn) {
+    quickLogoutBtn.addEventListener('click', () => {
+      isAdmin = false;
+      adminToken = null;
+      localStorage.removeItem('beldex_admin_token');
+      updateAdminUI();
+      showToast('👋 Administrator logged out.', 'info');
+    });
+  }
+
+  document.getElementById('btnCloseAdminModal').addEventListener('click', closeAdminModal);
+
+  // Autofill Default Credentials button
+  document.getElementById('btnAutoFillAdmin').addEventListener('click', () => {
+    document.getElementById('adminUsernameInput').value = DEFAULT_ADMIN_USER;
+    document.getElementById('adminPasswordInput').value = DEFAULT_ADMIN_PASS;
+    showToast('✨ Credentials filled! Click Log In.', 'info');
+  });
+
+  // Admin Login Form Submit
+  document.getElementById('adminLoginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const userVal = document.getElementById('adminUsernameInput').value.trim();
+    const passVal = document.getElementById('adminPasswordInput').value.trim();
+    const errBox = document.getElementById('adminLoginError');
+    errBox.classList.add('hidden');
+
+    if (isStaticHosted) {
+      // Static validation
+      if (userVal === DEFAULT_ADMIN_USER && passVal === DEFAULT_ADMIN_PASS) {
+        isAdmin = true;
+        adminToken = "admin_session_" + Date.now();
+        localStorage.setItem('beldex_admin_token', adminToken);
+        updateAdminUI();
+        closeAdminModal();
+        playAlertChime();
+        showToast("🛡️ Administrator authenticated! Full access granted.", "success");
+      } else {
+        errBox.textContent = "Invalid username or password. Use default admin credentials shown above.";
+        errBox.classList.remove('hidden');
+      }
+      return;
+    }
+
+    // Full-stack backend login
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: userVal, password: passVal })
+      });
+      const data = await res.json();
+      if (res.ok && data.token) {
+        isAdmin = true;
+        adminToken = data.token;
+        localStorage.setItem('beldex_admin_token', adminToken);
+        updateAdminUI();
+        closeAdminModal();
+        playAlertChime();
+        showToast("🛡️ Administrator authenticated! Full access granted.", "success");
+      } else {
+        errBox.textContent = data.detail || "Authentication failed. Check credentials.";
+        errBox.classList.remove('hidden');
+      }
+    } catch (err) {
+      // Fallback check against default credentials
+      if (userVal === DEFAULT_ADMIN_USER && passVal === DEFAULT_ADMIN_PASS) {
+        isAdmin = true;
+        adminToken = "admin_session_" + Date.now();
+        localStorage.setItem('beldex_admin_token', adminToken);
+        updateAdminUI();
+        closeAdminModal();
+        playAlertChime();
+        showToast("🛡️ Admin authenticated locally.", "success");
+      } else {
+        errBox.textContent = "Connection error: " + err.message;
+        errBox.classList.remove('hidden');
+      }
+    }
+  });
+
+  // Settings Button (Admin Protected)
   document.getElementById('btnOpenSettings').addEventListener('click', () => {
+    if (!isAdmin) {
+      promptAdminLogin("Alert configuration and sentinel settings are restricted to Admin alone.");
+      return;
+    }
     document.getElementById('settingsModal').classList.add('active');
   });
   document.getElementById('btnCloseSettings').addEventListener('click', () => {
@@ -1064,28 +1221,38 @@ document.addEventListener('DOMContentLoaded', () => {
   const openNexus = () => document.getElementById('nexusModal').classList.add('active');
   document.getElementById('btnOpenNexusModal').addEventListener('click', openNexus);
   document.getElementById('btnQuickNexusSync').addEventListener('click', openNexus);
-  document.getElementById('btnManualRate').addEventListener('click', openNexus);
+  document.getElementById('btnManualRate').addEventListener('click', () => {
+    if (!isAdmin) {
+      promptAdminLogin("Overriding nexus rates manually is restricted to Administrator.");
+      return;
+    }
+    openNexus();
+  });
   document.getElementById('btnCloseNexusModal').addEventListener('click', () => {
     document.getElementById('nexusModal').classList.remove('active');
   });
 
-  // Manual Rate Submit
+  // Manual Rate Submit (Admin Protected)
   document.getElementById('btnSubmitManualRate').addEventListener('click', async () => {
+    if (!isAdmin) {
+      promptAdminLogin("Only Administrator can override rates manually.");
+      return;
+    }
     const val = parseFloat(document.getElementById('modalManualRateInput').value);
     if (!val || val <= 0) return;
     const isUsd = val < 2.0;
-    const rUsd = isUsd ? val : (val / 93.85);
     const rInr = isUsd ? (val * 93.85) : val;
+    const rUsd = isUsd ? val : (val / 93.85);
 
-    latestNexusState.rate_usd = rUsd;
     latestNexusState.rate_inr = rInr;
+    latestNexusState.rate_usd = rUsd;
     latestNexusState.status = 'manual_override';
     latestNexusState.sync_method = 'manual';
     latestNexusState.last_sync_timestamp = Date.now() / 1000;
     latestNexusState.status_detail = `Manual rate configured at ${new Date().toLocaleTimeString()}`;
 
     if (latestAnalysis) {
-      latestNexusState.premium_pct_vs_market = ((rUsd - latestAnalysis.current_price_usd) / latestAnalysis.current_price_usd) * 100.0;
+      latestNexusState.premium_pct_vs_market = ((rInr - latestAnalysis.current_price_inr) / latestAnalysis.current_price_inr) * 100.0;
     }
     updateNexusDisplay(latestNexusState);
 
@@ -1093,25 +1260,31 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         await fetch('/api/nexus/manual-rate', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(isUsd ? { rate_usd: val } : { rate_inr: val })
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${adminToken}`
+          },
+          body: JSON.stringify({ rate_inr: rInr, rate_usd: rUsd })
         });
       } catch (e) {}
     }
 
-    showToast('✅ Nexus rate updated!', 'success');
+    showToast('✅ Nexus INR rate updated by Admin!', 'success');
     document.getElementById('nexusModal').classList.remove('active');
   });
 
-  // Simulation Modal
+  // Simulation Modal (Admin Protected)
   document.getElementById('btnOpenSimulate').addEventListener('click', () => {
+    if (!isAdmin) {
+      promptAdminLogin("Simulating price surges is restricted to Administrator.");
+      return;
+    }
     document.getElementById('simulateModal').classList.add('active');
   });
   document.getElementById('btnCloseSimulateModal').addEventListener('click', () => {
     document.getElementById('simulateModal').classList.remove('active');
   });
 
-  // Simulation % buttons
   document.querySelectorAll('.sim-pct-btn').forEach(b => {
     b.addEventListener('click', () => {
       document.querySelectorAll('.sim-pct-btn').forEach(btn => btn.classList.remove('active', 'border-emerald-500'));
@@ -1120,17 +1293,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Execute Simulation
+  // Execute Simulation (Admin Protected)
   document.getElementById('btnExecuteSimulation').addEventListener('click', async () => {
+    if (!isAdmin) {
+      promptAdminLogin("Only Administrator can trigger simulations.");
+      return;
+    }
     const pct = parseFloat(document.getElementById('simCustomPct').value) || 5.0;
     const trigger = document.getElementById('simTriggerAlertsCheck').checked;
     initAudio();
 
     if (isStaticHosted || !ws || ws.readyState !== WebSocket.OPEN) {
-      // Direct simulation in browser
-      const baseUsd = latestAnalysis ? latestAnalysis.current_price_usd : 0.0710;
+      const baseInr = latestAnalysis ? latestAnalysis.current_price_inr : 6.68;
+      const baseUsd = latestAnalysis ? latestAnalysis.current_price_usd : 0.0711;
+      const newInr = baseInr * (1.0 + (pct / 100.0));
       const newUsd = baseUsd * (1.0 + (pct / 100.0));
-      const newInr = newUsd * 93.85;
       const holdings = clientSettings.user_holdings_bdx || 10000;
 
       const simAnalysis = {
@@ -1139,24 +1316,24 @@ document.addEventListener('DOMContentLoaded', () => {
         timestamp: Date.now() / 1000,
         source: 'simulation',
         price_30m_usd: baseUsd,
-        price_30m_inr: baseUsd * 93.85,
+        price_30m_inr: baseInr,
         diff_30m_usd: newUsd - baseUsd,
-        diff_30m_inr: newInr - (baseUsd * 93.85),
+        diff_30m_inr: newInr - baseInr,
         diff_30m_pct: pct,
         is_high_demand_surge: true,
         is_target_sell_reached: false,
-        alert_reasons: [`Simulated 30-Minute Price Surge: +${pct.toFixed(1)}%`],
+        alert_reasons: [`Simulated 30-Minute Price Surge: +${pct.toFixed(1)}% (+₹${(newInr - baseInr).toFixed(2)})`],
         demand_level: pct >= 10 ? "EXTREME SURGE" : "HIGH DEMAND",
         recommendation: "STRONG SELL OPPORTUNITY (Spike Detected)",
         holdings_bdx: holdings,
         portfolio_value_usd: newUsd * holdings,
         portfolio_value_inr: newInr * holdings,
         profit_gain_30m_usd: (newUsd - baseUsd) * holdings,
-        profit_gain_30m_inr: (newInr - (baseUsd * 93.85)) * holdings
+        profit_gain_30m_inr: (newInr - baseInr) * holdings
       };
 
       playAlertChime();
-      showToast(`🔥 Simulated +${pct}% 30m Surge! Alerts dispatched.`, 'success');
+      showToast(`🔥 Simulated +${pct}% 30m INR Surge! Alerts dispatched.`, 'success');
       document.getElementById('simulateModal').classList.remove('active');
       updateHeroDisplay(simAnalysis);
 
@@ -1177,13 +1354,20 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const res = await fetch('/api/rates/simulate-surge', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${adminToken}`
+        },
         body: JSON.stringify({ surge_percent: pct, trigger_alerts: trigger })
       });
+      if (res.status === 401 || res.status === 403) {
+        promptAdminLogin("Admin session required to execute simulation.");
+        return;
+      }
       const data = await res.json();
       if (data.status === 'simulation_complete') {
         playAlertChime();
-        showToast(`🔥 Simulated +${pct}% 30m Surge! Alerts triggered.`, 'success');
+        showToast(`🔥 Simulated +${pct}% 30m INR Surge! Alerts triggered.`, 'success');
         document.getElementById('simulateModal').classList.remove('active');
         if (data.analysis) updateHeroDisplay(data.analysis);
         loadAlertsHistory();

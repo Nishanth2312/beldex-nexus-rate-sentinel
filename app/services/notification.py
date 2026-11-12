@@ -206,30 +206,34 @@ class NotificationService:
         port_usd = analysis_data.get("portfolio_value_usd") or (cur_usd * holdings)
         port_inr = analysis_data.get("portfolio_value_inr") or (cur_inr * holdings)
         profit_usd = analysis_data.get("profit_gain_30m_usd") or 0.0
+        diff_inr_abs = abs(cur_inr - p_30m_inr)
+        sign = "+" if cur_inr >= p_30m_inr else "-"
+        profit_inr = (cur_inr - p_30m_inr) * holdings
 
-        # 1. SMS Message (Short, actionable, high-priority)
+        # 1. SMS Message (Short, actionable, INR-focused)
         sms_text = (
             f"🚨 BELDEX HIGH DEMAND ALERT!\n"
-            f"30m Diff: +{diff_pct:.2f}%\n"
-            f"Price: ${cur_usd:.4f} / Rs {cur_inr:.2f}\n"
+            f"30m Surge: +{diff_pct:.2f}% ({sign}Rs {diff_inr_abs:.2f})\n"
+            f"Current Rate: Rs {cur_inr:.2f} (${cur_usd:.4f})\n"
+            f"Rate 30m Ago: Rs {p_30m_inr:.2f}\n"
             f"Your {holdings:,.0f} BDX = Rs {port_inr:,.0f}\n"
-            f"Sell Window Open! Check Nexus/Exchange."
+            f"High Demand Window! Check Nexus.vin."
         )
 
-        # 2. Telegram Message (Markdown formatted)
+        # 2. Telegram Message (Markdown formatted, INR first)
         tg_text = (
             f"🚨 *BELDEX (BDX) HIGH DEMAND ALERT!*\n\n"
-            f"📈 *30-Min Surge*: `+{diff_pct:.2f}%`\n"
-            f"💵 *Current Price*: `${cur_usd:.4f}` (~₹{cur_inr:.2f})\n"
-            f"⏳ *30m Ago*: `${p_30m_usd:.4f}` (~₹{p_30m_inr:.2f})\n"
-            f"💼 *Holdings Value ({holdings:,.0f} BDX)*: `${port_usd:,.2f}` (~₹{port_inr:,.0f})\n"
-            f"🔥 *30m Gain*: `+${profit_usd:.2f}`\n\n"
-            f"💡 *Action Recommendation*: HIGH PRICE DEMAND - Consider selling on Nexus.vin or exchange.\n"
+            f"📈 *30-Min Surge*: `+{diff_pct:.2f}%` (`{sign}₹{diff_inr_abs:.2f}`)\n"
+            f"💵 *Current BDX Rate*: `₹{cur_inr:.2f}` (`${cur_usd:.4f}` USD)\n"
+            f"⏳ *Rate 30m Ago*: `₹{p_30m_inr:.2f}`\n"
+            f"💼 *Holdings Value ({holdings:,.0f} BDX)*: `₹{port_inr:,.0f}` (`${port_usd:,.2f}`)\n"
+            f"🔥 *30m Profit Gain*: `+₹{profit_inr:,.0f}`\n\n"
+            f"💡 *Action*: HIGH PRICE DEMAND - Optimal opportunity to sell coins on Nexus.vin!\n"
             f"⏰ *Time*: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}"
         )
 
-        # 3. Email Subject & HTML Body
-        email_subj = f"🚨 BELDEX ALERT: +{diff_pct:.2f}% Surge in 30 Mins (${cur_usd:.4f} / ₹{cur_inr:.2f})"
+        # 3. Email Subject & HTML Body (INR-focused)
+        email_subj = f"🚨 BELDEX ALERT: +{diff_pct:.2f}% Surge in 30 Mins (₹{cur_inr:.2f} / ${cur_usd:.4f})"
         email_html = f"""
         <html>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #f8fafc; padding: 24px; margin: 0;">
@@ -241,19 +245,20 @@ class NotificationService:
             <div style="padding: 24px;">
               <div style="display: flex; justify-content: space-between; background: #0f172a; padding: 16px; border-radius: 8px; margin-bottom: 20px;">
                 <div>
-                  <div style="font-size: 12px; color: #94a3b8; text-transform: uppercase;">Current BDX Rate</div>
-                  <div style="font-size: 28px; font-weight: 700; color: #10b981;">${cur_usd:.4f} <span style="font-size: 18px; color: #cbd5e1;">(₹{cur_inr:.2f})</span></div>
+                  <div style="font-size: 12px; color: #94a3b8; text-transform: uppercase;">Current BDX Rate (INR)</div>
+                  <div style="font-size: 32px; font-weight: 800; color: #10b981;">₹{cur_inr:.2f} <span style="font-size: 16px; color: #cbd5e1;">(${cur_usd:.4f} USD)</span></div>
                 </div>
                 <div style="text-align: right;">
                   <div style="font-size: 12px; color: #94a3b8; text-transform: uppercase;">30-Min Difference</div>
-                  <div style="font-size: 28px; font-weight: 700; color: #10b981;">+{diff_pct:.2f}%</div>
+                  <div style="font-size: 32px; font-weight: 800; color: #10b981;">+{diff_pct:.2f}%</div>
+                  <div style="font-size: 12px; color: #34d399; font-weight: 600;">{sign}₹{diff_inr_abs:.2f}</div>
                 </div>
               </div>
               
               <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px;">
                 <tr style="border-bottom: 1px solid #334155;">
                   <td style="padding: 10px 0; color: #94a3b8;">Rate 30 Mins Ago:</td>
-                  <td style="padding: 10px 0; text-align: right; font-weight: 600;">${p_30m_usd:.4f} (₹{p_30m_inr:.2f})</td>
+                  <td style="padding: 10px 0; text-align: right; font-weight: 600;">₹{p_30m_inr:.2f} (${p_30m_usd:.4f})</td>
                 </tr>
                 <tr style="border-bottom: 1px solid #334155;">
                   <td style="padding: 10px 0; color: #94a3b8;">Your Beldex Holdings:</td>
@@ -261,18 +266,18 @@ class NotificationService:
                 </tr>
                 <tr style="border-bottom: 1px solid #334155;">
                   <td style="padding: 10px 0; color: #94a3b8;">Total Portfolio Sell Value:</td>
-                  <td style="padding: 10px 0; text-align: right; font-weight: 700; color: #38bdf8;">${port_usd:,.2f} (~₹{port_inr:,.0f})</td>
+                  <td style="padding: 10px 0; text-align: right; font-weight: 800; color: #38bdf8;">₹{port_inr:,.0f} (${port_usd:,.2f})</td>
                 </tr>
                 <tr>
                   <td style="padding: 10px 0; color: #94a3b8;">Estimated 30m Value Gain:</td>
-                  <td style="padding: 10px 0; text-align: right; font-weight: 700; color: #10b981;">+${profit_usd:,.2f}</td>
+                  <td style="padding: 10px 0; text-align: right; font-weight: 800; color: #10b981;">+₹{profit_inr:,.0f}</td>
                 </tr>
               </table>
 
               <div style="background: rgba(16, 185, 129, 0.1); border-left: 4px solid #10b981; padding: 12px; border-radius: 4px; margin-bottom: 24px;">
                 <strong style="color: #10b981;">Recommended Strategy:</strong>
                 <p style="margin: 4px 0 0 0; color: #cbd5e1; font-size: 13px;">
-                  High buy demand detected over the last 30 minutes. If you are looking to take profit or liquidate your coins at peak rates, review the orderbook on nexus.vin or your preferred exchange now.
+                  High demand detected over the last 30 minutes in INR rate. If you are looking to take profit or liquidate your coins at peak rates, review your orders on nexus.vin now.
                 </p>
               </div>
 
@@ -291,10 +296,10 @@ class NotificationService:
 
         # 4. Discord Embed
         discord_fields = [
-            {"name": "Current Price", "value": f"${cur_usd:.4f} (₹{cur_inr:.2f})", "inline": True},
-            {"name": "30m Change", "value": f"+{diff_pct:.2f}%", "inline": True},
-            {"name": "30m Ago", "value": f"${p_30m_usd:.4f}", "inline": True},
-            {"name": "Holdings Value", "value": f"${port_usd:,.2f} (₹{port_inr:,.0f})", "inline": True},
+            {"name": "Current Rate (INR)", "value": f"₹{cur_inr:.2f} (${cur_usd:.4f})", "inline": True},
+            {"name": "30m Change", "value": f"+{diff_pct:.2f}% ({sign}₹{diff_inr_abs:.2f})", "inline": True},
+            {"name": "30m Ago Rate", "value": f"₹{p_30m_inr:.2f}", "inline": True},
+            {"name": "Portfolio Value", "value": f"₹{port_inr:,.0f} (${port_usd:,.2f})", "inline": True},
             {"name": "Trigger Reason", "value": " • ".join(reasons) if reasons else "30m Surge", "inline": False}
         ]
 

@@ -1,8 +1,9 @@
 from typing import Any, Dict, Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.config import settings
 from app.database import record_price_tick
+from app.services.auth import require_admin
 from app.services.nexus_client import nexus_client
 from app.services.rate_analyzer import rate_analyzer
 
@@ -71,9 +72,12 @@ async def sync_from_companion(payload: NexusSyncPayload):
     }
 
 @router.post("/manual-rate")
-async def set_manual_rate(payload: NexusManualRatePayload):
+async def set_manual_rate(
+    payload: NexusManualRatePayload,
+    admin: str = Depends(require_admin)
+):
     """
-    Set or override nexus.vin rate manually.
+    Set or override nexus.vin rate manually. (ADMIN ONLY)
     """
     if not payload.rate_usd and not payload.rate_inr:
         raise HTTPException(status_code=400, detail="Must provide rate_usd or rate_inr")

@@ -13,6 +13,7 @@ from app.services.scheduler import scheduler
 from app.api.routes_rates import router as rates_router
 from app.api.routes_nexus import router as nexus_router
 from app.api.routes_alerts import router as alerts_router
+from app.api.routes_auth import router as auth_router
 from app.api.websocket import router as ws_router
 
 logging.basicConfig(
@@ -49,6 +50,7 @@ app.add_middleware(
 )
 
 # Mount API Routers
+app.include_router(auth_router)
 app.include_router(rates_router)
 app.include_router(nexus_router)
 app.include_router(alerts_router)

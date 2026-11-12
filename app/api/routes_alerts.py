@@ -1,8 +1,9 @@
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.config import settings
 from app.database import get_recent_alerts, set_dynamic_setting
+from app.services.auth import require_admin
 from app.services.notification import notification_service
 
 router = APIRouter(prefix="/api/alerts", tags=["Alerts"])
@@ -102,9 +103,12 @@ async def get_alert_config():
     }
 
 @router.post("/config")
-async def update_alert_config(payload: AlertConfigPayload):
+async def update_alert_config(
+    payload: AlertConfigPayload,
+    admin: str = Depends(require_admin)
+):
     """
-    Dynamically update notification channels and monitoring thresholds.
+    Dynamically update notification channels and monitoring thresholds. (ADMIN ONLY)
     """
     # Monitoring parameters
     if payload.poll_interval_seconds is not None:
@@ -178,9 +182,12 @@ async def update_alert_config(payload: AlertConfigPayload):
     return {"status": "success", "message": "Alert configuration updated successfully"}
 
 @router.post("/test")
-async def trigger_channel_test(payload: TestAlertPayload):
+async def trigger_channel_test(
+    payload: TestAlertPayload,
+    admin: str = Depends(require_admin)
+):
     """
-    Test a specific channel (telegram, email, sms, discord).
+    Test a specific channel (telegram, email, sms, discord). (ADMIN ONLY)
     """
     res = await notification_service.send_test_alert(payload.channel)
     return res

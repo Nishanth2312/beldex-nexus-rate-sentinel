@@ -73,6 +73,12 @@ class Settings(BaseSettings):
     discord_webhook_url: str = ""
     custom_webhook_url: str = ""
 
+    # Admin Authentication Credentials
+    admin_username: str = "admin"
+    admin_password: str = "Admin@Beldex2026!"
+    admin_secret_key: str = "beldex-sentinel-admin-auth-secret-key-2026"
+    admin_session_expiry_hours: int = 24
+
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),
         env_file_encoding="utf-8",

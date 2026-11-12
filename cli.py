@@ -52,7 +52,7 @@ async def cmd_status():
         print(f"{COLOR_YELLOW}Price recorded. Need at least 1 historical snapshot for 30m window comparison.{COLOR_RESET}")
         return
 
-    print(f"\n{COLOR_BOLD}Current BDX Rate:{COLOR_RESET} {COLOR_GREEN}${analysis.current_price_usd:.4f}{COLOR_RESET} (~₹{analysis.current_price_inr:.2f} INR)")
+    print(f"\n{COLOR_BOLD}Current BDX Rate:{COLOR_RESET} {COLOR_GREEN}₹{analysis.current_price_inr:.2f}{COLOR_RESET} (~${analysis.current_price_usd:.4f} USD)")
     
     # 30m Difference
     diff_pct = analysis.diff_30m_pct
@@ -62,8 +62,8 @@ async def cmd_status():
     if diff_pct is not None:
         color = COLOR_GREEN if diff_pct >= 0 else COLOR_RED
         sign = "+" if diff_pct >= 0 else ""
-        print(f"{COLOR_BOLD}30-Min Difference:{COLOR_RESET} {color}{sign}{diff_pct:.2f}%{COLOR_RESET} ({sign}${diff_usd:.4f} / {sign}₹{diff_inr:.2f})")
-        print(f"Rate 30 Mins Ago: ${analysis.price_30m_usd:.4f} (~₹{analysis.price_30m_inr:.2f})")
+        print(f"{COLOR_BOLD}30-Min Difference:{COLOR_RESET} {color}{sign}{diff_pct:.2f}%{COLOR_RESET} ({sign}₹{diff_inr:.2f} / {sign}${diff_usd:.4f})")
+        print(f"Rate 30 Mins Ago: ₹{analysis.price_30m_inr:.2f} (~${analysis.price_30m_usd:.4f} USD)")
     else:
         print(f"{COLOR_YELLOW}30-Min Difference: Establishing historical baseline...{COLOR_RESET}")
 
@@ -75,21 +75,21 @@ async def cmd_status():
 
     # Portfolio
     print(f"\n{COLOR_BOLD}Portfolio Estimation ({analysis.holdings_bdx:,.0f} BDX):{COLOR_RESET}")
-    print(f"  Current Value: ${analysis.portfolio_value_usd:,.2f} (~₹{analysis.portfolio_value_inr:,.0f})")
-    if analysis.profit_gain_30m_usd is not None:
-        p_sign = "+" if analysis.profit_gain_30m_usd >= 0 else ""
-        print(f"  30-Min Gain: {p_sign}${analysis.profit_gain_30m_usd:,.2f} ({p_sign}₹{analysis.profit_gain_30m_inr:,.0f})")
+    print(f"  Current Value: ₹{analysis.portfolio_value_inr:,.0f} (~${analysis.portfolio_value_usd:,.2f} USD)")
+    if analysis.profit_gain_30m_inr is not None:
+        p_sign = "+" if analysis.profit_gain_30m_inr >= 0 else ""
+        print(f"  30-Min Gain: {p_sign}₹{analysis.profit_gain_30m_inr:,.0f} ({p_sign}${analysis.profit_gain_30m_usd:,.2f})")
 
     # Exchange breakdown
     print(f"\n{COLOR_BOLD}Live Exchanges:{COLOR_RESET}")
     for src, t in snapshot.sources.items():
-        print(f"  • {src.upper():<10}: ${t.price_usd:.4f} (₹{t.price_inr:.2f}) [24h: {t.change_24h_pct:+.2f}%]")
+        print(f"  • {src.upper():<10}: ₹{t.price_inr:.2f} (${t.price_usd:.4f}) [24h: {t.change_24h_pct:+.2f}%]")
 
     # Nexus.vin state
     print(f"\n{COLOR_BOLD}Nexus.vin Portal:{COLOR_RESET}")
     print(f"  Status: {nexus_client.state.status} ({nexus_client.state.status_detail})")
-    if nexus_client.state.rate_usd:
-        print(f"  Nexus Rate: ${nexus_client.state.rate_usd:.4f} (~₹{nexus_client.state.rate_inr:.2f})")
+    if nexus_client.state.rate_inr:
+        print(f"  Nexus Rate: ₹{nexus_client.state.rate_inr:.2f} (~${nexus_client.state.rate_usd:.4f} USD)")
         if nexus_client.state.premium_pct_vs_market:
             print(f"  Arbitrage vs Market: {nexus_client.state.premium_pct_vs_market:+.2f}%")
     print(f"{COLOR_BLUE}=========================================={COLOR_RESET}\n")

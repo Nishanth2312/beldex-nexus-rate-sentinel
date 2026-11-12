@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Beldex Nexus Rate Sentinel | 30m Rate Difference & Selling Alerts</title>
+  <title>Beldex Nexus Rate Sentinel | INR 30m Rate Difference & Selling Alerts</title>
   
   <!-- Tailwind CSS & Font -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -30,9 +30,9 @@
           <div class="flex items-center gap-2">
             <h1 class="font-extrabold text-lg text-white tracking-tight">BELDEX NEXUS SENTINEL</h1>
             <span class="beacon-live"></span>
-            <span id="wsStatusBadge" class="badge badge-green text-[10px]">LIVE FEED</span>
+            <span id="wsStatusBadge" class="badge badge-green text-[10px]">LIVE FEED (INR)</span>
           </div>
-          <p class="text-xs text-slate-400">Autonomous 30m Rate Difference & High Demand Selling Alerts</p>
+          <p class="text-xs text-slate-400">Autonomous 30m INR Rate Difference & High Demand Selling Alerts</p>
         </div>
       </div>
 
@@ -50,10 +50,11 @@
           <span>Scan Now</span>
         </button>
 
-        <!-- Simulate Spike -->
-        <button id="btnOpenSimulate" class="btn btn-secondary text-xs px-3 py-2 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10">
+        <!-- Simulate Spike (Admin Restricted) -->
+        <button id="btnOpenSimulate" class="btn btn-secondary text-xs px-3 py-2 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 flex items-center gap-1.5">
           <i class="fa-solid fa-bolt-lightning"></i>
           <span>Simulate Surge</span>
+          <span class="badge badge-amber text-[9px] py-0 px-1 ml-0.5">Admin</span>
         </button>
 
         <!-- Nexus Bookmarklet Helper -->
@@ -62,10 +63,19 @@
           <span>Nexus Sync</span>
         </button>
 
-        <!-- Settings Modal Trigger -->
-        <button id="btnOpenSettings" class="btn btn-primary text-xs px-4 py-2">
-          <i class="fa-solid fa-gear"></i>
+        <!-- Admin Login / Status Trigger -->
+        <div id="adminAuthArea" class="flex items-center gap-1">
+          <button id="btnAdminLoginToggle" class="btn btn-secondary text-xs px-3 py-2 border-amber-500/40 text-amber-300 hover:bg-amber-500/10 flex items-center gap-1.5">
+            <i id="adminLockIcon" class="fa-solid fa-lock text-amber-400"></i>
+            <span id="adminBtnText">Admin Login</span>
+          </button>
+        </div>
+
+        <!-- Settings Modal Trigger (Admin Protected) -->
+        <button id="btnOpenSettings" class="btn btn-primary text-xs px-4 py-2 flex items-center gap-1.5">
+          <i class="fa-solid fa-sliders"></i>
           <span>Alerts & Config</span>
+          <span class="badge badge-amber text-[9px] py-0 px-1 ml-0.5 bg-amber-500/30 text-amber-200">Admin</span>
         </button>
       </div>
 
@@ -74,6 +84,18 @@
 
   <!-- MAIN CONTAINER -->
   <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- ADMIN BANNER (Shown when logged in) -->
+    <div id="adminActiveBanner" class="hidden p-3 rounded-xl bg-amber-950/40 border border-amber-500/40 flex items-center justify-between gap-3 text-xs shadow-lg">
+      <div class="flex items-center gap-2 text-amber-300">
+        <i class="fa-solid fa-shield-check text-amber-400 text-base"></i>
+        <span><strong>Admin Session Active:</strong> You have full administrative privileges to edit notification keys, update thresholds, run channel tests, and simulate rate spikes.</span>
+      </div>
+      <button id="btnQuickLogout" class="btn btn-danger text-[11px] py-1 px-3">
+        <i class="fa-solid fa-right-from-bracket"></i>
+        <span>Logout Admin</span>
+      </button>
+    </div>
 
     <!-- TOP HERO: 30-MINUTE RATE DIFFERENCE & SELLING SIGNAL -->
     <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -86,7 +108,7 @@
         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-[#233154] pb-4 mb-4">
           <div class="flex items-center gap-2">
             <span class="px-2.5 py-1 rounded bg-blue-500/20 text-blue-400 font-mono font-bold text-xs uppercase tracking-wider">
-              30-Minute Window Analysis
+              30-Minute Window Analysis (INR)
             </span>
             <span id="diffStatusTag" class="badge badge-green text-xs">MONITORING ACTIVE</span>
           </div>
@@ -97,21 +119,22 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
           
-          <!-- Large 30m Diff Metric -->
+          <!-- Large 30m Diff Metric in INR -->
           <div>
-            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">30-Minute Rate Difference</div>
-            <div class="flex items-baseline gap-3 my-1">
-              <span id="diff30mPercent" class="text-4xl md:text-5xl font-black font-mono rate-surge-positive">
-                +0.00%
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">30-Minute Rate Difference (INR)</div>
+            <div class="flex items-baseline gap-2 my-1 flex-wrap">
+              <span id="diff30mInr" class="text-3xl md:text-5xl font-black font-mono text-emerald-400">
+                +₹0.00
+              </span>
+              <span id="diff30mPercent" class="text-2xl md:text-3xl font-black font-mono rate-surge-positive">
+                (+0.00%)
               </span>
               <span id="diff30mIndicator" class="text-xl font-bold text-emerald-400">
                 <i class="fa-solid fa-arrow-trend-up"></i>
               </span>
             </div>
-            <div class="text-sm font-medium text-slate-300 flex items-center gap-2">
-              <span>Diff: <span id="diff30mUsd" class="font-mono font-bold text-white">$0.0000</span></span>
-              <span>•</span>
-              <span><span id="diff30mInr" class="font-mono font-bold text-white">₹0.00</span></span>
+            <div class="text-xs font-medium text-slate-400 flex items-center gap-2">
+              <span>USD Equiv: <span id="diff30mUsd" class="font-mono text-slate-300">$0.0000</span></span>
             </div>
 
             <!-- Selling Signal Banner -->
@@ -121,37 +144,39 @@
               </div>
               <div>
                 <div id="signalTitle" class="text-xs font-bold text-emerald-400 uppercase tracking-wide">Monitoring 30m Difference</div>
-                <div id="signalDesc" class="text-xs text-slate-300">Surge threshold set to <span id="thresholdDisplay" class="font-bold">3.0%</span>. Automatic SMS, Email & Telegram will fire on high price demand.</div>
+                <div id="signalDesc" class="text-xs text-slate-300">Surge threshold set to <span id="thresholdDisplay" class="font-bold">3.0%</span> in INR. Automatic alerts trigger on high price demand.</div>
               </div>
             </div>
           </div>
 
-          <!-- Price Now vs Price 30m Ago Breakdown -->
+          <!-- Price Now vs Price 30m Ago Breakdown (INR FIRST) -->
           <div class="bg-[#0f172a]/80 p-4 rounded-xl border border-[#233154] space-y-3">
             <div class="flex justify-between items-center text-xs text-slate-400 border-b border-[#1e293b] pb-2">
               <span>Metric</span>
-              <span>Price (USD / INR)</span>
+              <span>Rate (INR ₹ / USD $)</span>
             </div>
 
+            <!-- Current Rate -->
             <div class="flex justify-between items-center">
               <div class="flex items-center gap-2">
                 <div class="w-2 h-2 rounded-full bg-emerald-400"></div>
                 <span class="text-xs text-slate-300 font-semibold">Current BDX Rate</span>
               </div>
               <div class="text-right font-mono">
-                <div id="heroCurUsd" class="text-lg font-bold text-emerald-400">$0.0710</div>
-                <div id="heroCurInr" class="text-xs text-slate-400">₹6.66</div>
+                <div id="heroCurInr" class="text-2xl font-black text-emerald-400">₹6.68</div>
+                <div id="heroCurUsd" class="text-xs text-slate-400">($0.0711 USD)</div>
               </div>
             </div>
 
+            <!-- 30m Ago Rate -->
             <div class="flex justify-between items-center">
               <div class="flex items-center gap-2">
                 <div class="w-2 h-2 rounded-full bg-slate-500"></div>
                 <span class="text-xs text-slate-300 font-semibold">Rate 30 Mins Ago</span>
               </div>
               <div class="text-right font-mono">
-                <div id="heroPastUsd" class="text-sm font-semibold text-slate-300">$0.0710</div>
-                <div id="heroPastInr" class="text-xs text-slate-500">₹6.66</div>
+                <div id="heroPastInr" class="text-base font-bold text-slate-200">₹6.66</div>
+                <div id="heroPastUsd" class="text-xs text-slate-500">($0.0710 USD)</div>
               </div>
             </div>
 
@@ -160,14 +185,15 @@
               <span id="heroHoldingsAmount" class="text-xs font-mono font-bold text-blue-400">10,000 BDX</span>
             </div>
 
-            <div class="flex justify-between items-center bg-[#131b2e] p-2 rounded border border-[#1e293b]">
+            <!-- Sell Value in INR -->
+            <div class="flex justify-between items-center bg-[#131b2e] p-2.5 rounded border border-[#1e293b]">
               <div>
-                <div class="text-[11px] text-slate-400 uppercase">Estimated Sell Value</div>
-                <div id="heroPortGain" class="text-[11px] text-emerald-400 font-mono">+₹0.00 in 30m</div>
+                <div class="text-[11px] text-slate-400 uppercase">Estimated Sell Value (INR)</div>
+                <div id="heroPortGain" class="text-xs text-emerald-400 font-mono font-bold">+₹0 in 30m</div>
               </div>
               <div class="text-right">
-                <div id="heroPortInr" class="text-base font-black text-white font-mono">₹66,600</div>
-                <div id="heroPortUsd" class="text-xs text-slate-400 font-mono">$710.00</div>
+                <div id="heroPortInr" class="text-xl font-black text-white font-mono">₹66,800</div>
+                <div id="heroPortUsd" class="text-[11px] text-slate-400 font-mono">($711.00 USD)</div>
               </div>
             </div>
 
@@ -183,22 +209,22 @@
           <div class="flex items-center justify-between border-b border-[#233154] pb-3 mb-3">
             <div class="flex items-center gap-2">
               <i class="fa-solid fa-server text-indigo-400"></i>
-              <h2 class="font-bold text-sm text-white">nexus.vin Portal Status</h2>
+              <h2 class="font-bold text-sm text-white">nexus.vin Portal Rate</h2>
             </div>
             <span id="nexusBadge" class="badge badge-amber text-[10px]">Awaiting Sync</span>
           </div>
 
           <div class="space-y-3">
             <div class="p-3 bg-[#0d1322] rounded-lg border border-[#233154]">
-              <div class="text-xs text-slate-400 mb-1">Nexus Verified BDX Rate:</div>
+              <div class="text-xs text-slate-400 mb-1">Nexus Verified Rate (INR):</div>
               <div class="flex items-baseline justify-between">
-                <div id="nexusRateDisplay" class="text-2xl font-mono font-bold text-indigo-400">--</div>
-                <div id="nexusInrDisplay" class="text-xs font-mono text-slate-400">--</div>
+                <div id="nexusInrDisplay" class="text-3xl font-mono font-bold text-indigo-400">₹--</div>
+                <div id="nexusRateDisplay" class="text-xs font-mono text-slate-400">($-- USD)</div>
               </div>
             </div>
 
             <div class="flex justify-between items-center text-xs">
-              <span class="text-slate-400">Market Arbitrage Spread:</span>
+              <span class="text-slate-400">Market Spread:</span>
               <span id="nexusArbitrageDisplay" class="font-mono font-bold text-slate-300">0.00%</span>
             </div>
 
@@ -213,7 +239,7 @@
             </div>
 
             <div id="nexusDetailMsg" class="p-2.5 rounded bg-blue-950/30 border border-blue-500/20 text-xs text-slate-300">
-              nexus.vin uses Cloudflare session validation. Click <strong>Nexus Sync</strong> above to relay live rates from your browser tab!
+              nexus.vin uses Cloudflare session validation. Click <strong>Nexus Sync</strong> to relay live rates in 1 click!
             </div>
           </div>
         </div>
@@ -232,14 +258,14 @@
 
     </section>
 
-    <!-- MULTI-TIMEFRAME RATE DIFFERENCE MATRIX -->
+    <!-- MULTI-TIMEFRAME RATE DIFFERENCE MATRIX (ALL IN INR) -->
     <section class="card">
       <div class="flex items-center justify-between mb-4 border-b border-[#233154] pb-3">
         <div class="flex items-center gap-2">
           <i class="fa-solid fa-chart-line text-blue-400"></i>
-          <h2 class="font-bold text-sm text-white">Multi-Timeframe Rate Difference Matrix</h2>
+          <h2 class="font-bold text-sm text-white">Multi-Timeframe Rate Difference Matrix (INR ₹)</h2>
         </div>
-        <span class="text-xs text-slate-400">Comparing current price against rolling intervals</span>
+        <span class="text-xs text-slate-400">Comparing current INR price against rolling intervals</span>
       </div>
 
       <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
@@ -247,36 +273,36 @@
         <!-- 5m Diff -->
         <div class="p-3 bg-[#0d1322] rounded-xl border border-[#233154] text-center">
           <div class="text-[11px] font-semibold text-slate-400 uppercase">5-Min Diff</div>
-          <div id="matrix5mPct" class="text-xl font-bold font-mono my-1 text-slate-300">--</div>
-          <div id="matrix5mUsd" class="text-[11px] font-mono text-slate-500">--</div>
+          <div id="matrix5mInr" class="text-lg font-bold font-mono my-1 text-slate-300">--</div>
+          <div id="matrix5mPct" class="text-xs font-mono text-slate-400">--</div>
         </div>
 
         <!-- 15m Diff -->
         <div class="p-3 bg-[#0d1322] rounded-xl border border-[#233154] text-center">
           <div class="text-[11px] font-semibold text-slate-400 uppercase">15-Min Diff</div>
-          <div id="matrix15mPct" class="text-xl font-bold font-mono my-1 text-slate-300">--</div>
-          <div id="matrix15mUsd" class="text-[11px] font-mono text-slate-500">--</div>
+          <div id="matrix15mInr" class="text-lg font-bold font-mono my-1 text-slate-300">--</div>
+          <div id="matrix15mPct" class="text-xs font-mono text-slate-400">--</div>
         </div>
 
-        <!-- 30m Diff (Hero) -->
+        <!-- 30m Diff (Hero Target) -->
         <div class="p-3 bg-blue-950/30 rounded-xl border-2 border-blue-500/40 text-center shadow-lg shadow-blue-500/10">
           <div class="text-[11px] font-bold text-blue-400 uppercase tracking-wide">30-Min Diff (Target)</div>
-          <div id="matrix30mPct" class="text-2xl font-black font-mono my-1 text-emerald-400">--</div>
-          <div id="matrix30mUsd" class="text-[11px] font-mono font-semibold text-slate-300">--</div>
+          <div id="matrix30mInr" class="text-2xl font-black font-mono my-1 text-emerald-400">--</div>
+          <div id="matrix30mPct" class="text-xs font-mono font-bold text-emerald-300">--</div>
         </div>
 
         <!-- 1h Diff -->
         <div class="p-3 bg-[#0d1322] rounded-xl border border-[#233154] text-center">
           <div class="text-[11px] font-semibold text-slate-400 uppercase">1-Hour Diff</div>
-          <div id="matrix1hPct" class="text-xl font-bold font-mono my-1 text-slate-300">--</div>
-          <div id="matrix1hUsd" class="text-[11px] font-mono text-slate-500">--</div>
+          <div id="matrix1hInr" class="text-lg font-bold font-mono my-1 text-slate-300">--</div>
+          <div id="matrix1hPct" class="text-xs font-mono text-slate-400">--</div>
         </div>
 
         <!-- 24h Diff -->
         <div class="p-3 bg-[#0d1322] rounded-xl border border-[#233154] text-center">
           <div class="text-[11px] font-semibold text-slate-400 uppercase">24-Hour Diff</div>
-          <div id="matrix24hPct" class="text-xl font-bold font-mono my-1 text-slate-300">--</div>
-          <div id="matrix24hUsd" class="text-[11px] font-mono text-slate-500">--</div>
+          <div id="matrix24hInr" class="text-lg font-bold font-mono my-1 text-slate-300">--</div>
+          <div id="matrix24hPct" class="text-xs font-mono text-slate-400">--</div>
         </div>
 
       </div>
@@ -285,12 +311,12 @@
     <!-- CHART & SELLING CALCULATOR -->
     <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-      <!-- REAL-TIME PRICE CHART -->
+      <!-- REAL-TIME PRICE CHART (INR PRIMARY) -->
       <div class="lg:col-span-2 card">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[#233154] pb-3 mb-4">
           <div class="flex items-center gap-2">
             <i class="fa-solid fa-chart-area text-emerald-400"></i>
-            <h2 class="font-bold text-sm text-white">Beldex Live Rate & 30m Comparison Trend</h2>
+            <h2 class="font-bold text-sm text-white">Beldex Live Rate (INR ₹) & 30m Trend</h2>
           </div>
           <div class="flex items-center gap-2">
             <div class="flex rounded-lg bg-[#0d1322] p-1 border border-[#233154] text-xs">
@@ -299,7 +325,7 @@
               <button id="chartTf24h" class="px-2 py-1 rounded text-slate-400 hover:text-white font-medium">24H</button>
             </div>
             <button id="btnCurrencyToggle" class="btn btn-secondary text-xs px-2.5 py-1">
-              <span id="curToggleText">USD ($)</span>
+              <span id="curToggleText">INR (₹)</span>
             </button>
           </div>
         </div>
@@ -310,13 +336,13 @@
         </div>
       </div>
 
-      <!-- SELLING CALCULATOR & LADDER -->
+      <!-- SELLING CALCULATOR & LADDER (INR PRIMARY) -->
       <div class="card flex flex-col justify-between">
         <div>
           <div class="flex items-center justify-between border-b border-[#233154] pb-3 mb-3">
             <div class="flex items-center gap-2">
               <i class="fa-solid fa-calculator text-amber-400"></i>
-              <h2 class="font-bold text-sm text-white">Selling & Profit Calculator</h2>
+              <h2 class="font-bold text-sm text-white">Selling & Profit Calculator (INR)</h2>
             </div>
             <span class="badge badge-blue text-[10px]">Liquidate</span>
           </div>
@@ -330,28 +356,28 @@
               </div>
             </div>
 
-            <!-- Target Profit Ladder Table -->
-            <div class="text-xs font-semibold text-slate-400 pt-1">Potential Sell Price Ladder:</div>
+            <!-- Target Profit Ladder Table in INR -->
+            <div class="text-xs font-semibold text-slate-400 pt-1">Potential Sell Price Ladder (INR):</div>
             <div class="space-y-1.5 font-mono text-xs">
               
               <div class="flex justify-between items-center p-2 rounded bg-[#0d1322] border border-[#233154]">
                 <span class="text-slate-400 font-sans">Current Price:</span>
-                <span id="ladderCur" class="font-bold text-white">$0.00 / ₹0.00</span>
+                <span id="ladderCur" class="font-bold text-white">₹0.00 → ₹0</span>
               </div>
 
               <div class="flex justify-between items-center p-2 rounded bg-emerald-950/20 border border-emerald-500/20">
                 <span class="text-emerald-400 font-sans font-semibold">+5% Surge Target:</span>
-                <span id="ladder5pct" class="font-bold text-emerald-400">$0.00 / ₹0.00</span>
+                <span id="ladder5pct" class="font-bold text-emerald-400">₹0.00 → ₹0</span>
               </div>
 
               <div class="flex justify-between items-center p-2 rounded bg-emerald-950/30 border border-emerald-500/30">
                 <span class="text-emerald-300 font-sans font-semibold">+10% Surge Target:</span>
-                <span id="ladder10pct" class="font-bold text-emerald-300">$0.00 / ₹0.00</span>
+                <span id="ladder10pct" class="font-bold text-emerald-300">₹0.00 → ₹0</span>
               </div>
 
               <div class="flex justify-between items-center p-2 rounded bg-emerald-950/40 border border-emerald-500/40">
                 <span class="text-emerald-200 font-sans font-semibold">+25% Peak Demand:</span>
-                <span id="ladder25pct" class="font-bold text-emerald-200">$0.00 / ₹0.00</span>
+                <span id="ladder25pct" class="font-bold text-emerald-200">₹0.00 → ₹0</span>
               </div>
 
             </div>
@@ -376,9 +402,9 @@
         <div class="flex items-center justify-between border-b border-[#233154] pb-3 mb-4">
           <div class="flex items-center gap-2">
             <i class="fa-solid fa-bell text-amber-400"></i>
-            <h2 class="font-bold text-sm text-white">Notification Channels</h2>
+            <h2 class="font-bold text-sm text-white">Alert Channels</h2>
           </div>
-          <span class="text-xs text-slate-400">Verify</span>
+          <span class="badge badge-amber text-[9px]">Admin Action</span>
         </div>
 
         <div class="space-y-3">
@@ -390,7 +416,7 @@
                 <i class="fa-solid fa-comment-sms"></i>
               </div>
               <div>
-                <div class="text-xs font-bold text-white">SMS Alert</div>
+                <div class="text-xs font-bold text-white">SMS Alert (INR)</div>
                 <div id="smsStatusText" class="text-[11px] text-slate-400">Twilio / Fast2SMS</div>
               </div>
             </div>
@@ -450,12 +476,12 @@
         </div>
       </div>
 
-      <!-- RECENT ALERTS SENT LOG -->
+      <!-- RECENT ALERTS SENT LOG (INR FIRST) -->
       <div class="lg:col-span-2 card">
         <div class="flex items-center justify-between border-b border-[#233154] pb-3 mb-4">
           <div class="flex items-center gap-2">
             <i class="fa-solid fa-clock-rotate-left text-blue-400"></i>
-            <h2 class="font-bold text-sm text-white">Recent Dispatched Alerts Log</h2>
+            <h2 class="font-bold text-sm text-white">Recent Dispatched Alerts Log (INR)</h2>
           </div>
           <span id="alertsCountBadge" class="badge badge-blue text-[10px]">0 Alerts</span>
         </div>
@@ -466,8 +492,8 @@
               <tr class="text-slate-400 border-b border-[#233154]">
                 <th class="pb-2 font-semibold">Time</th>
                 <th class="pb-2 font-semibold">Type</th>
-                <th class="pb-2 font-semibold">30m Diff</th>
-                <th class="pb-2 font-semibold">Price (USD / INR)</th>
+                <th class="pb-2 font-semibold">30m Diff (%)</th>
+                <th class="pb-2 font-semibold">Rate (INR ₹)</th>
                 <th class="pb-2 font-semibold">Channels</th>
                 <th class="pb-2 font-semibold">Status</th>
               </tr>
@@ -488,7 +514,71 @@
   </main>
 
   <!-- ======================================================== -->
-  <!-- MODAL 1: SETTINGS & ALERT CONFIGURATION -->
+  <!-- MODAL: ADMIN LOGIN -->
+  <!-- ======================================================== -->
+  <div id="adminLoginModal" class="modal-overlay">
+    <div class="modal-container p-6 max-w-md">
+      
+      <div class="flex items-center justify-between border-b border-[#233154] pb-3 mb-4">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-lock text-amber-400"></i>
+          <h3 class="font-bold text-base text-white">Administrator Authentication</h3>
+        </div>
+        <button id="btnCloseAdminModal" class="text-slate-400 hover:text-white text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs">
+        <p class="text-slate-300">
+          Alert configurations, channel credentials, surge simulations, and system settings are strictly restricted to <strong>Administrator</strong>.
+        </p>
+
+        <!-- Default Credentials Callout Box -->
+        <div class="p-3.5 bg-amber-950/40 border border-amber-500/40 rounded-xl space-y-1.5 shadow-md">
+          <div class="font-bold text-amber-300 flex items-center justify-between">
+            <span class="flex items-center gap-1.5">
+              <i class="fa-solid fa-key text-amber-400"></i>
+              <span>Default Admin Credentials:</span>
+            </span>
+            <button type="button" id="btnAutoFillAdmin" class="btn btn-secondary text-[10px] py-1 px-2.5 text-amber-300 border-amber-500/50 hover:bg-amber-500/20">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Autofill
+            </button>
+          </div>
+          <div class="font-mono text-[11px] text-slate-300">
+            Username: <strong class="text-white select-all">admin</strong>
+          </div>
+          <div class="font-mono text-[11px] text-slate-300">
+            Password: <strong class="text-white select-all">Admin@Beldex2026!</strong>
+          </div>
+        </div>
+
+        <form id="adminLoginForm" class="space-y-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Admin Username:</label>
+            <input id="adminUsernameInput" type="text" class="input-field font-mono" placeholder="admin" required>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Admin Password:</label>
+            <input id="adminPasswordInput" type="password" class="input-field font-mono" placeholder="••••••••••••" required>
+          </div>
+
+          <div id="adminLoginError" class="hidden p-2 rounded bg-rose-950/50 border border-rose-500/40 text-rose-300 text-xs"></div>
+
+          <button type="submit" class="btn btn-primary w-full text-xs font-bold py-2.5 mt-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500">
+            <i class="fa-solid fa-right-to-bracket"></i>
+            <span>Log In as Administrator</span>
+          </button>
+        </form>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: SETTINGS & ALERT CONFIGURATION (ADMIN ONLY) -->
   <!-- ======================================================== -->
   <div id="settingsModal" class="modal-overlay">
     <div class="modal-container p-6">
@@ -496,7 +586,10 @@
       <div class="flex items-center justify-between border-b border-[#233154] pb-3 mb-4">
         <div class="flex items-center gap-2">
           <i class="fa-solid fa-sliders text-blue-400"></i>
-          <h3 class="font-bold text-base text-white">Alerts & Sentinel Settings</h3>
+          <div>
+            <h3 class="font-bold text-base text-white">Alerts & Sentinel Settings</h3>
+            <span class="badge badge-amber text-[9px] py-0 px-1.5">Administrator Access</span>
+          </div>
         </div>
         <button id="btnCloseSettings" class="text-slate-400 hover:text-white text-lg">
           <i class="fa-solid fa-xmark"></i>
@@ -505,14 +598,14 @@
 
       <form id="settingsForm" class="space-y-5">
         
-        <!-- MONITORING THRESHOLDS -->
+        <!-- MONITORING THRESHOLDS (INR PRIMARY) -->
         <div>
-          <h4 class="text-xs font-bold text-blue-400 uppercase tracking-wider mb-2">1. 30-Minute Surge & Target Thresholds</h4>
+          <h4 class="text-xs font-bold text-blue-400 uppercase tracking-wider mb-2">1. 30-Minute Surge & Target Thresholds (INR)</h4>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label class="block text-xs text-slate-300 mb-1">30m Surge Threshold (%):</label>
               <input id="cfgSurgePct" type="number" step="0.5" class="input-field" placeholder="3.0">
-              <span class="text-[10px] text-slate-400">Alert triggers when 30m price spikes by this %</span>
+              <span class="text-[10px] text-slate-400">Alert triggers when 30m INR rate spikes by this %</span>
             </div>
             <div>
               <label class="block text-xs text-slate-300 mb-1">Alert Cooldown (Minutes):</label>
@@ -520,14 +613,14 @@
               <span class="text-[10px] text-slate-400">Minimum time between alerts</span>
             </div>
             <div>
-              <label class="block text-xs text-slate-300 mb-1">Target Sell Price (USD $):</label>
-              <input id="cfgTargetUsd" type="number" step="0.001" class="input-field" placeholder="0.0800">
-              <span class="text-[10px] text-slate-400">Optional: alert when price reaches this level</span>
+              <label class="block text-xs text-slate-300 mb-1 font-bold text-emerald-400">Target Sell Price (INR ₹):</label>
+              <input id="cfgTargetInr" type="number" step="0.1" class="input-field font-bold font-mono text-emerald-400" placeholder="7.50">
+              <span class="text-[10px] text-slate-400">Alert immediately when BDX reaches this INR rate</span>
             </div>
             <div>
-              <label class="block text-xs text-slate-300 mb-1">Target Sell Price (INR ₹):</label>
-              <input id="cfgTargetInr" type="number" step="0.1" class="input-field" placeholder="7.50">
-              <span class="text-[10px] text-slate-400">Optional: target level in Indian Rupees</span>
+              <label class="block text-xs text-slate-300 mb-1">Target Sell Price (USD $):</label>
+              <input id="cfgTargetUsd" type="number" step="0.001" class="input-field font-mono" placeholder="0.0800">
+              <span class="text-[10px] text-slate-400">Optional: secondary target in USD</span>
             </div>
           </div>
         </div>
@@ -585,7 +678,7 @@
         <!-- SMS (TWILIO / FAST2SMS) CONFIG -->
         <div class="border-t border-[#233154] pt-4">
           <div class="flex items-center justify-between mb-2">
-            <h4 class="text-xs font-bold text-amber-400 uppercase tracking-wider">4. SMS Notifications</h4>
+            <h4 class="text-xs font-bold text-amber-400 uppercase tracking-wider">4. SMS Notifications (India / Global)</h4>
             <label class="flex items-center gap-2 cursor-pointer text-xs">
               <input id="cfgSmsEnabled" type="checkbox" class="w-4 h-4 rounded text-amber-600">
               <span>Enable SMS</span>
@@ -620,11 +713,6 @@
               <input id="cfgTwilioFrom" type="text" class="input-field font-mono text-xs">
             </div>
           </div>
-          <!-- Fast2SMS fields -->
-          <div id="fast2smsFields" class="hidden">
-            <label class="block text-[11px] text-slate-400 mb-1">Fast2SMS API Key:</label>
-            <input id="cfgFast2smsKey" type="password" class="input-field font-mono text-xs">
-          </div>
         </div>
 
         <!-- DISCORD CONFIG -->
@@ -652,7 +740,7 @@
   </div>
 
   <!-- ======================================================== -->
-  <!-- MODAL 2: NEXUS.VIN COMPANION & BOOKMARKLET -->
+  <!-- MODAL: NEXUS.VIN COMPANION & BOOKMARKLET -->
   <!-- ======================================================== -->
   <div id="nexusModal" class="modal-overlay">
     <div class="modal-container p-6">
@@ -704,9 +792,9 @@
 
         <!-- Manual Rate Override -->
         <div class="border-t border-[#233154] pt-3">
-          <div class="font-bold text-white mb-2">Or Enter Current Nexus Rate Manually:</div>
+          <div class="font-bold text-white mb-2">Or Enter Current Nexus Rate Manually (INR ₹):</div>
           <div class="flex gap-2">
-            <input id="modalManualRateInput" type="number" step="0.0001" placeholder="e.g. 0.0750 USD or 7.00 INR" class="input-field font-mono">
+            <input id="modalManualRateInput" type="number" step="0.01" placeholder="e.g. ₹7.15 or $0.076" class="input-field font-mono">
             <button id="btnSubmitManualRate" class="btn btn-primary whitespace-nowrap text-xs">Update Rate</button>
           </div>
         </div>
@@ -717,7 +805,7 @@
   </div>
 
   <!-- ======================================================== -->
-  <!-- MODAL 3: SURGE SIMULATOR -->
+  <!-- MODAL: SURGE SIMULATOR (ADMIN ONLY) -->
   <!-- ======================================================== -->
   <div id="simulateModal" class="modal-overlay">
     <div class="modal-container p-6 max-w-md">
@@ -725,7 +813,10 @@
       <div class="flex items-center justify-between border-b border-[#233154] pb-3 mb-4">
         <div class="flex items-center gap-2">
           <i class="fa-solid fa-bolt-lightning text-emerald-400"></i>
-          <h3 class="font-bold text-base text-white">Simulate 30m Price Surge</h3>
+          <div>
+            <h3 class="font-bold text-base text-white">Simulate 30m Price Surge (INR)</h3>
+            <span class="badge badge-amber text-[9px] py-0 px-1.5">Administrator Access</span>
+          </div>
         </div>
         <button id="btnCloseSimulateModal" class="text-slate-400 hover:text-white text-lg">
           <i class="fa-solid fa-xmark"></i>
@@ -734,7 +825,7 @@
 
       <div class="space-y-4 text-xs">
         <p class="text-slate-300">
-          Simulate an immediate high demand price surge over a 30-minute interval to test audio chimes and dispatch alerts to your phone and email.
+          Simulate an immediate high demand price surge over a 30-minute interval in INR to test audio chimes and dispatch alerts to your phone and email.
         </p>
 
         <div>
@@ -765,7 +856,6 @@
     </div>
   </div>
 
-  <!-- Audio Chime Element (Synthesized via Web Audio API) -->
   <script src="app.js"></script>
 </body>
 </html>

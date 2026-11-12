@@ -1,9 +1,10 @@
 import time
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from app.config import settings
 from app.database import get_price_history, record_price_tick
+from app.services.auth import require_admin
 from app.services.market_feed import market_feed
 from app.services.rate_analyzer import rate_analyzer
 from app.services.scheduler import scheduler
@@ -91,9 +92,12 @@ async def trigger_immediate_scan():
     return {"status": "success", "result": res}
 
 @router.post("/simulate-surge")
-async def simulate_price_surge(req: SimulateSurgeRequest):
+async def simulate_price_surge(
+    req: SimulateSurgeRequest,
+    admin: str = Depends(require_admin)
+):
     """
-    Simulates a high price surge (e.g. +7.5% over 30 mins) to test notification dispatch.
+    Simulates a high price surge (e.g. +7.5% over 30 mins) to test notification dispatch. (ADMIN ONLY)
     """
     # Get current price
     latest_analysis = await rate_analyzer.analyze_current_rate()
