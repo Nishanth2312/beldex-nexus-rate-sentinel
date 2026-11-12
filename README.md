@@ -11,7 +11,7 @@
 
 An autonomous, cross-platform cryptocurrency monitoring and high-demand selling alert platform designed specifically for **Beldex (BDX)** and **nexus.vin** traders.
 
-It continuously tracks live market prices across global exchanges (Gate.io, KuCoin, MEXC, CoinGecko), calculates exact **30-minute rolling rate differences**, monitors **nexus.vin**, and instantly dispatches **multi-channel alerts via SMS, Email, Telegram, Discord, and Web Audio chimes** whenever high price demand is detected so you can liquidate or sell your coins at peak value.
+It continuously tracks live market prices across global exchanges (KuCoin Tier-1 Primary, Gate.io, MEXC), calculates exact **30-minute rolling rate differences**, monitors **nexus.vin**, and instantly dispatches **multi-channel alerts via SMS, Email, Telegram, Discord, and Web Audio chimes** whenever high price demand is detected so you can liquidate or sell your coins at peak value.
 
 ---
 
@@ -53,9 +53,8 @@ It continuously tracks live market prices across global exchanges (Gate.io, KuCo
 ```mermaid
 flowchart TD
     subgraph Market_Feeds ["Global Exchange Feeds"]
+        KC["KuCoin (BDX-USDT Priority 1)"]
         GK["Gate.io (BDX_USDT)"]
-        KC["KuCoin (BDX-USDT)"]
-        CG["CoinGecko (USD & INR)"]
         MX["MEXC (BDXUSDT)"]
     end
 

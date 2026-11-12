@@ -30,7 +30,7 @@ COLOR_RESET = "\033[0m"
 async def cmd_status():
     await init_db()
     print(f"\n{COLOR_BOLD}{COLOR_BLUE}=== BELDEX NEXUS RATE SENTINEL STATUS ==={COLOR_RESET}")
-    print("Fetching live market prices from Gate.io, KuCoin, MEXC, CoinGecko...")
+    print("Fetching live market prices from KuCoin (Tier-1 Primary), Gate.io, MEXC...")
     snapshot = await market_feed.get_market_snapshot()
     if not snapshot:
         print(f"{COLOR_RED}Failed to fetch live prices from exchanges.{COLOR_RESET}")

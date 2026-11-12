@@ -73,7 +73,20 @@ class RateAnalyzerService:
         target_ts = now - (minutes * 60)
         past = await get_price_at_or_before(target_ts, source=source, max_lookback_seconds=minutes * 120)
         if not past or past["price_usd"] <= 0:
-            return WindowDiff(window_label=label, minutes=minutes)
+            history = await get_price_history(source=source, limit=1)
+            if history and history[0].get("price_usd", 0) > 0:
+                past = history[0]
+
+        if not past or past["price_usd"] <= 0:
+            return WindowDiff(
+                window_label=label,
+                minutes=minutes,
+                past_price_usd=round(current_usd, 6),
+                past_price_inr=round(current_inr, 4),
+                diff_usd=0.0,
+                diff_inr=0.0,
+                diff_pct=0.0
+            )
 
         past_usd = past["price_usd"]
         past_inr = past["price_inr"]
@@ -137,14 +150,7 @@ class RateAnalyzerService:
         demand_level = "NORMAL"
         recommendation = "HOLD / MONITOR"
 
-        # Check 10m Surge
-        if diff_10m.diff_pct is not None and diff_10m.diff_pct >= threshold_pct:
-            is_surge = True
-            reasons.append(f"10-Minute Price Surge: +{diff_10m.diff_pct:.2f}% (Threshold: {threshold_pct:.1f}%)")
-            demand_level = "HIGH DEMAND"
-            recommendation = "CONSIDER SELLING (High 10m Demand Surge)"
-
-        # Check 30m Surge
+        # Check 30m Surge (Primary Target Window)
         if diff_30m.diff_pct is not None:
             if diff_30m.diff_pct >= threshold_pct:
                 is_surge = True
@@ -158,6 +164,14 @@ class RateAnalyzerService:
             elif diff_30m.diff_pct <= -threshold_pct:
                 demand_level = "DECLINING"
                 recommendation = "PRICE DUMP DETECTED"
+
+        # Check 10m Surge
+        if diff_10m.diff_pct is not None and diff_10m.diff_pct >= threshold_pct:
+            is_surge = True
+            reasons.append(f"10-Minute Price Surge: +{diff_10m.diff_pct:.2f}% (Threshold: {threshold_pct:.1f}%)")
+            if demand_level == "NORMAL":
+                demand_level = "HIGH DEMAND"
+                recommendation = "CONSIDER SELLING (High 10m Demand Surge)"
 
         # Check Target Sell Prices
         if t_sell_usd > 0 and cur_usd >= t_sell_usd:

@@ -24,21 +24,17 @@ class Settings(BaseSettings):
     cooldown_minutes: int = 10                # Cooldown: 10 minutes between alerts
     user_holdings_bdx: float = 10000.0        # Used to calculate sell value
     
-    # Primary Market Sources
-    enable_gateio: bool = True
+    # Primary Market Sources (KuCoin Priority 1)
     enable_kucoin: bool = True
+    enable_gateio: bool = True
     enable_mexc: bool = True
-    enable_coingecko: bool = True
     
     # Nexus.vin Configuration & Selling Formula
     nexus_enabled: bool = True
     nexus_url: str = "https://nexus.vin"
     nexus_selling_premium_inr: float = 0.45   # Selling price = actual beldex price + 0.45 paise (+₹0.45 INR)
     nexus_cookie: str = ""                    # User session cookies or cf_clearance
-    nexus_user_agent: str = (
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
-    )
+    nexus_user_agent: str = "Mozilla/5.0 (X11; Linux x86_64) BeldexSentinel/1.0"
     nexus_auth_token: str = ""
     nexus_manual_rate_usd: Optional[float] = None
     nexus_manual_rate_inr: Optional[float] = None

@@ -4,6 +4,7 @@ import time
 from typing import Any, Dict, List, Optional
 import httpx
 from pydantic import BaseModel
+from app.config import settings
 
 logger = logging.getLogger("beldex_sentinel.market_feed")
 
@@ -113,58 +114,45 @@ class MarketFeedService:
             logger.warning(f"MEXC fetch failed: {e}")
         return None
 
-    async def fetch_coingecko(self, client: httpx.AsyncClient) -> Optional[ExchangeTicker]:
-        url = "https://api.coingecko.com/api/v3/simple/price?ids=beldex&vs_currencies=usd,inr&include_24hr_vol=true&include_24hr_change=true"
-        try:
-            resp = await client.get(url, headers=self.headers)
-            if resp.status_code == 200:
-                data = resp.json().get("beldex", {})
-                p_usd = float(data.get("usd", 0.0))
-                p_inr = float(data.get("inr", 0.0))
-                vol = float(data.get("usd_24h_vol", 0.0))
-                change = float(data.get("usd_24h_change", 0.0))
-                if p_usd > 0 and p_inr > 0:
-                    # Update dynamic forex conversion rate
-                    self.default_usd_inr = p_inr / p_usd
-                return ExchangeTicker(
-                    exchange="coingecko",
-                    price_usd=p_usd,
-                    price_inr=p_inr,
-                    volume_24h=vol,
-                    high_24h=0.0,
-                    low_24h=0.0,
-                    change_24h_pct=change,
-                    timestamp=time.time(),
-                    raw_status="ok"
-                )
-        except Exception as e:
-            logger.warning(f"CoinGecko fetch failed: {e}")
-        return None
-
     async def get_market_snapshot(self) -> Optional[MarketSnapshot]:
         async with httpx.AsyncClient(timeout=self.timeout) as client:
-            # Fetch all sources concurrently
-            tasks = [
-                self.fetch_coingecko(client),
-                self.fetch_gateio(client),
-                self.fetch_kucoin(client),
-                self.fetch_mexc(client)
-            ]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+            # Tier 1 Priority: KuCoin
+            if settings.enable_kucoin:
+                kucoin_res = await self.fetch_kucoin(client)
+                if kucoin_res and kucoin_res.price_usd > 0:
+                    sources = {"kucoin": kucoin_res}
+                    return MarketSnapshot(
+                        composite_price_usd=round(kucoin_res.price_usd, 6),
+                        composite_price_inr=round(kucoin_res.price_inr, 4),
+                        usd_inr_rate=round(self.default_usd_inr, 3),
+                        volume_24h_total=round(kucoin_res.volume_24h, 2),
+                        high_24h_max=round(kucoin_res.high_24h or kucoin_res.price_usd, 6),
+                        low_24h_min=round(kucoin_res.low_24h or kucoin_res.price_usd, 6),
+                        average_change_24h_pct=round(kucoin_res.change_24h_pct, 3),
+                        timestamp=time.time(),
+                        sources=sources
+                    )
+
+            # Secondary Fallback: Gate.io & MEXC (only if KuCoin is unavailable)
+            fallback_tasks = []
+            if settings.enable_gateio:
+                fallback_tasks.append(self.fetch_gateio(client))
+            if settings.enable_mexc:
+                fallback_tasks.append(self.fetch_mexc(client))
+
+            results = await asyncio.gather(*fallback_tasks, return_exceptions=True)
 
         sources: Dict[str, ExchangeTicker] = {}
         for res in results:
             if isinstance(res, ExchangeTicker) and res.price_usd > 0:
-                # Recalculate price_inr with latest USD/INR rate
-                if res.exchange != "coingecko":
-                    res.price_inr = round(res.price_usd * self.default_usd_inr, 4)
+                res.price_inr = round(res.price_usd * self.default_usd_inr, 4)
                 sources[res.exchange] = res
 
         if not sources:
             logger.error("All market feed endpoints failed to provide BDX price.")
             return None
 
-        # Calculate composite values
+        # Calculate composite values across active fallback sources
         prices_usd = [s.price_usd for s in sources.values()]
         prices_inr = [s.price_inr for s in sources.values()]
         comp_usd = sum(prices_usd) / len(prices_usd)
