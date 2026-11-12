@@ -27,12 +27,16 @@
           <i class="fa-solid fa-shield-halved text-white text-lg"></i>
         </div>
         <div>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 flex-wrap">
             <h1 class="font-extrabold text-lg text-white tracking-tight">BELDEX NEXUS SENTINEL</h1>
             <span class="beacon-live"></span>
             <span id="wsStatusBadge" class="badge badge-green text-[10px]">LIVE FEED (INR)</span>
+            <span id="updateCadenceBadge" class="badge bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 text-[10px] font-mono flex items-center gap-1 shadow-sm" title="Rates auto-refresh once every 10 minutes">
+              <i class="fa-solid fa-clock text-indigo-400"></i>
+              <span>10m Update: <strong id="countdownTimer" class="text-white font-mono">10:00</strong></span>
+            </span>
           </div>
-          <p class="text-xs text-slate-400">Autonomous 30m INR Rate Difference & High Demand Selling Alerts</p>
+          <p class="text-xs text-slate-400">Autonomous 10m & 30m INR Rate Difference • High Demand Selling Alerts</p>
         </div>
       </div>
 
@@ -325,13 +329,23 @@
         <span class="text-xs text-slate-400">Comparing current INR price against rolling intervals</span>
       </div>
 
-      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
         
         <!-- 5m Diff -->
         <div class="p-3 bg-[#0d1322] rounded-xl border border-[#233154] text-center">
           <div class="text-[11px] font-semibold text-slate-400 uppercase">5-Min Diff</div>
           <div id="matrix5mInr" class="text-lg font-bold font-mono my-1 text-slate-300">--</div>
           <div id="matrix5mPct" class="text-xs font-mono text-slate-400">--</div>
+        </div>
+
+        <!-- 10m Diff (Primary Update Cadence) -->
+        <div class="p-3 bg-indigo-950/30 rounded-xl border-2 border-indigo-500/50 text-center shadow-lg shadow-indigo-500/10">
+          <div class="text-[11px] font-bold text-indigo-300 uppercase flex items-center justify-center gap-1">
+            <span>10-Min Diff</span>
+            <span class="badge bg-indigo-500/30 text-indigo-200 text-[9px] py-0 px-1 font-mono">10m Cycle</span>
+          </div>
+          <div id="matrix10mInr" class="text-lg font-black font-mono my-1 text-indigo-200">--</div>
+          <div id="matrix10mPct" class="text-xs font-mono text-indigo-300">--</div>
         </div>
 
         <!-- 15m Diff -->
