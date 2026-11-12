@@ -50,6 +50,12 @@ class RateAnalysis(BaseModel):
     profit_gain_30m_usd: Optional[float] = None
     profit_gain_30m_inr: Optional[float] = None
 
+    # Nexus Selling Price Metrics (Actual Beldex Price + 0.45 paise)
+    nexus_selling_price_inr: Optional[float] = None
+    nexus_premium_inr: float = 0.45
+    nexus_holdings_value_inr: Optional[float] = None
+    nexus_extra_profit_inr: Optional[float] = None
+
 class RateAnalyzerService:
     def __init__(self):
         pass
@@ -171,6 +177,12 @@ class RateAnalyzerService:
         profit_usd = (diff_30m.diff_usd * bdx_held) if diff_30m.diff_usd is not None else None
         profit_inr = (diff_30m.diff_inr * bdx_held) if diff_30m.diff_inr is not None else None
 
+        # Nexus selling metrics: Selling Price = Actual Beldex Price + 0.45 paise (+₹0.45)
+        nexus_prem = settings.nexus_selling_premium_inr
+        nexus_sell_inr = round(cur_inr + nexus_prem, 4)
+        nexus_hold_val = round(bdx_held * nexus_sell_inr, 2)
+        nexus_bonus = round(bdx_held * nexus_prem, 2)
+
         return RateAnalysis(
             current_price_usd=cur_usd,
             current_price_inr=cur_inr,
@@ -195,7 +207,11 @@ class RateAnalyzerService:
             portfolio_value_usd=round(port_usd, 2),
             portfolio_value_inr=round(port_inr, 2),
             profit_gain_30m_usd=round(profit_usd, 2) if profit_usd is not None else None,
-            profit_gain_30m_inr=round(profit_inr, 2) if profit_inr is not None else None
+            profit_gain_30m_inr=round(profit_inr, 2) if profit_inr is not None else None,
+            nexus_selling_price_inr=nexus_sell_inr,
+            nexus_premium_inr=nexus_prem,
+            nexus_holdings_value_inr=nexus_hold_val,
+            nexus_extra_profit_inr=nexus_bonus
         )
 
 rate_analyzer = RateAnalyzerService()

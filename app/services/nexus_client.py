@@ -10,16 +10,72 @@ logger = logging.getLogger("beldex_sentinel.nexus")
 class NexusState(BaseModel):
     rate_usd: Optional[float] = None
     rate_inr: Optional[float] = None
-    status: str = "awaiting_sync"  # 'synced_via_companion', 'connected_direct', 'manual_override', 'challenge_required'
-    status_detail: str = "Ready for connection or Companion sync"
+    status: str = "awaiting_sync"  # 'synced_via_companion', 'connected_direct', 'manual_override', 'challenge_required', 'calculated_from_market'
+    status_detail: str = "Nexus Selling Price active (Actual + 0.45 paise)"
     last_sync_timestamp: float = 0.0
-    sync_method: str = "none"      # 'companion', 'session_auth', 'manual'
+    sync_method: str = "formula"   # 'formula', 'companion', 'session_auth', 'manual'
     premium_pct_vs_market: Optional[float] = None
     user_account_info: Optional[Dict[str, Any]] = None
+    
+    # Nexus Specific Selling Price Metrics (Actual Beldex Price + 0.45 paise)
+    actual_beldex_price_inr: Optional[float] = None
+    actual_beldex_price_usd: Optional[float] = None
+    nexus_selling_premium_inr: float = 0.45
+    nexus_selling_premium_paise: float = 45.0
+    nexus_selling_price_inr: Optional[float] = None
+    nexus_selling_price_usd: Optional[float] = None
+    holdings_regular_value_inr: Optional[float] = None
+    holdings_nexus_value_inr: Optional[float] = None
+    holdings_extra_profit_inr: Optional[float] = None
+    formula_rule: str = "Selling Price = Actual Beldex Price + 0.45 Paise (+₹0.45)"
 
 class NexusClientService:
     def __init__(self):
         self.state = NexusState()
+
+    def calculate_selling_price(
+        self,
+        actual_inr: float,
+        actual_usd: float,
+        holdings_bdx: float = 10000.0,
+        premium_inr: Optional[float] = None
+    ) -> NexusState:
+        """
+        Calculates Nexus Selling Price strictly adhering to rule:
+        Selling Price = Actual Beldex Price + 0.45 paise (₹0.45 INR).
+        """
+        if premium_inr is None:
+            premium_inr = settings.nexus_selling_premium_inr
+
+        self.state.actual_beldex_price_inr = round(actual_inr, 4)
+        self.state.actual_beldex_price_usd = round(actual_usd, 6)
+        self.state.nexus_selling_premium_inr = round(premium_inr, 4)
+        self.state.nexus_selling_premium_paise = round(premium_inr * 100.0, 1)
+
+        # Selling price = actual beldex price + 0.45 paise
+        selling_inr = round(actual_inr + premium_inr, 4)
+        selling_usd = round(selling_inr / 93.85, 6)
+
+        self.state.nexus_selling_price_inr = selling_inr
+        self.state.nexus_selling_price_usd = selling_usd
+
+        if actual_inr > 0:
+            premium_pct = ((selling_inr - actual_inr) / actual_inr) * 100.0
+            self.state.premium_pct_vs_market = round(premium_pct, 2)
+
+        self.state.holdings_regular_value_inr = round(holdings_bdx * actual_inr, 2)
+        self.state.holdings_nexus_value_inr = round(holdings_bdx * selling_inr, 2)
+        self.state.holdings_extra_profit_inr = round(holdings_bdx * premium_inr, 2)
+
+        if self.state.status not in ["manual_override", "synced_via_companion"]:
+            self.state.rate_inr = selling_inr
+            self.state.rate_usd = selling_usd
+            self.state.status = "calculated_from_market"
+            self.state.status_detail = f"Live Nexus Selling Price: ₹{selling_inr} (Actual ₹{actual_inr} + ₹{premium_inr})"
+            self.state.last_sync_timestamp = time.time()
+            self.state.sync_method = "formula"
+
+        return self.state
 
     def update_from_relay(
         self,

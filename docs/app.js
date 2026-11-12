@@ -282,6 +282,7 @@ function updateHeroDisplay(analysis) {
 
   document.getElementById('lastTickTime').textContent = formatTime(analysis.timestamp);
   updateSellingLadder(curInr, curUsd);
+  updateNexusMenuUI();
 }
 
 function updateMatrixCell(windowKey, diffObj) {
@@ -305,47 +306,124 @@ function updateMatrixCell(windowKey, diffObj) {
   }
 }
 
+let nexusSellingPremiumInr = 0.45; // 45 paise formula offset (+₹0.45 INR)
+
 function updateNexusDisplay(nexus) {
   if (!nexus) return;
   latestNexusState = nexus;
+  if (nexus.nexus_selling_premium_inr) {
+    nexusSellingPremiumInr = nexus.nexus_selling_premium_inr;
+  }
+  updateNexusMenuUI();
+}
 
-  const badge = document.getElementById('nexusBadge');
+function updateNexusMenuUI() {
+  const actualInr = latestAnalysis ? latestAnalysis.current_price_inr : (latestNexusState.actual_beldex_price_inr || 6.66);
+  const actualUsd = latestAnalysis ? latestAnalysis.current_price_usd : (latestNexusState.actual_beldex_price_usd || 0.0710);
+  
+  // Rule: Selling Price = Actual Beldex Price + 0.45 paise (+₹0.45 INR)
+  const premiumInr = nexusSellingPremiumInr;
+  const sellingInr = actualInr + premiumInr;
+  const sellingUsd = sellingInr / 93.85;
+  const arbitragePct = actualInr > 0 ? ((sellingInr - actualInr) / actualInr) * 100.0 : 0;
+  
+  // 1. Update Card on Dashboard
+  const cardActual = document.getElementById('nexusCardActualInr');
+  const cardPayout = document.getElementById('nexusCardPayoutInr');
+  const cardBonus = document.getElementById('nexusCardBonusInr');
   const inrDisp = document.getElementById('nexusInrDisplay');
   const rateDisp = document.getElementById('nexusRateDisplay');
   const arbDisp = document.getElementById('nexusArbitrageDisplay');
-  const methodDisp = document.getElementById('nexusSyncMethod');
-  const lastSyncDisp = document.getElementById('nexusLastSync');
+  const syncMethodDisp = document.getElementById('nexusSyncMethod');
+  
+  if (cardActual) cardActual.textContent = `₹${actualInr.toFixed(4)}`;
+  if (cardPayout) cardPayout.textContent = `₹${(10000 * sellingInr).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+  if (cardBonus) cardBonus.textContent = `+₹${(10000 * premiumInr).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (inrDisp) inrDisp.textContent = `₹${sellingInr.toFixed(4)}`;
+  if (rateDisp) rateDisp.textContent = `($${sellingUsd.toFixed(4)} USD)`;
+  if (arbDisp) arbDisp.textContent = `+${arbitragePct.toFixed(2)}%`;
+  if (syncMethodDisp) syncMethodDisp.textContent = "Selling Formula (+45p)";
 
-  if (nexus.status === 'synced_via_companion') {
-    badge.className = 'badge badge-green text-[10px]';
-    badge.textContent = 'Synced via Companion';
-  } else if (nexus.status === 'manual_override') {
-    badge.className = 'badge badge-blue text-[10px]';
-    badge.textContent = 'Manual Rate';
-  } else if (nexus.status === 'connected_direct') {
-    badge.className = 'badge badge-green text-[10px]';
-    badge.textContent = 'Connected Direct';
+  // 2. Update Dedicated Nexus Menu Section Elements
+  const menuActualInr = document.getElementById('nexusMenuActualInr');
+  const menuActualUsd = document.getElementById('nexusMenuActualUsd');
+  const menuPremiumInr = document.getElementById('nexusMenuPremiumInr');
+  const menuPremiumPaise = document.getElementById('nexusMenuPremiumPaise');
+  const menuSellingInr = document.getElementById('nexusMenuSellingInr');
+  const menuSellingUsd = document.getElementById('nexusMenuSellingUsd');
+  const menuArbitragePct = document.getElementById('nexusMenuArbitragePct');
+  const menu30mDiff = document.getElementById('nexusMenu30mDiff');
+  const adminPremiumDisplay = document.getElementById('adminPremiumDisplay');
+
+  if (menuActualInr) menuActualInr.textContent = `₹${actualInr.toFixed(4)}`;
+  if (menuActualUsd) menuActualUsd.textContent = `($${actualUsd.toFixed(4)} USD)`;
+  if (menuPremiumInr) menuPremiumInr.textContent = `+₹${premiumInr.toFixed(2)}`;
+  if (menuPremiumPaise) menuPremiumPaise.textContent = `${(premiumInr * 100).toFixed(0)} Paise per coin`;
+  if (menuSellingInr) menuSellingInr.textContent = `₹${sellingInr.toFixed(4)}`;
+  if (menuSellingUsd) menuSellingUsd.textContent = `($${sellingUsd.toFixed(4)} USD)`;
+  if (menuArbitragePct) menuArbitragePct.innerHTML = `<i class="fa-solid fa-arrow-trend-up"></i><span>+${arbitragePct.toFixed(2)}% above spot market</span>`;
+  if (adminPremiumDisplay) adminPremiumDisplay.textContent = `${premiumInr.toFixed(2)} INR (${(premiumInr * 100).toFixed(0)} paise)`;
+
+  if (latestAnalysis && menu30mDiff) {
+    const diffPct = latestAnalysis.diff_30m_pct || 0.0;
+    const diffInr = latestAnalysis.diff_30m_inr || 0.0;
+    const sign = diffPct >= 0 ? '+' : '';
+    menu30mDiff.textContent = `30m Trend: ${sign}${diffPct.toFixed(2)}% (${sign}₹${Math.abs(diffInr).toFixed(2)})`;
+  }
+
+  // 3. Update Calculator
+  calculateNexusReturns(actualInr, sellingInr, premiumInr);
+}
+
+function calculateNexusReturns(actualInr, sellingInr, premiumInr) {
+  if (actualInr === undefined || sellingInr === undefined || premiumInr === undefined) {
+    actualInr = latestAnalysis ? latestAnalysis.current_price_inr : 6.66;
+    premiumInr = nexusSellingPremiumInr;
+    sellingInr = actualInr + premiumInr;
+  }
+  const inputElem = document.getElementById('nexusCalcHoldingsInput');
+  const holdings = parseFloat(inputElem ? inputElem.value : 10000) || 10000;
+  
+  const regPayout = holdings * actualInr;
+  const nexPayout = holdings * sellingInr;
+  const extraProfit = holdings * premiumInr;
+  
+  const regElem = document.getElementById('nexusCalcRegularPayout');
+  const nexElem = document.getElementById('nexusCalcTotalPayout');
+  const extraElem = document.getElementById('nexusCalcExtraProfit');
+  
+  if (regElem) regElem.textContent = `₹${regPayout.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (nexElem) nexElem.textContent = `₹${nexPayout.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (extraElem) extraElem.textContent = `+₹${extraProfit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function switchMainView(viewName) {
+  const dashSection = document.getElementById('sectionDashboard');
+  const nexusSection = document.getElementById('sectionNexusMenu');
+  const tabDash = document.getElementById('navTabDashboard');
+  const tabNexus = document.getElementById('navTabNexusMenu');
+  
+  if (viewName === 'nexus') {
+    if (dashSection) dashSection.classList.add('hidden');
+    if (nexusSection) nexusSection.classList.remove('hidden');
+    if (tabDash) {
+      tabDash.className = 'nav-tab px-4 py-2 rounded-xl font-bold transition-all text-slate-300 hover:bg-slate-800/50 border border-transparent flex items-center gap-2 whitespace-nowrap';
+    }
+    if (tabNexus) {
+      tabNexus.className = 'nav-tab active px-4 py-2 rounded-xl font-bold transition-all bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 flex items-center gap-2 whitespace-nowrap shadow-sm';
+    }
+    updateNexusMenuUI();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   } else {
-    badge.className = 'badge badge-amber text-[10px]';
-    badge.textContent = 'Ready for Sync';
+    if (nexusSection) nexusSection.classList.add('hidden');
+    if (dashSection) dashSection.classList.remove('hidden');
+    if (tabDash) {
+      tabDash.className = 'nav-tab active px-4 py-2 rounded-xl font-bold transition-all bg-blue-600/30 text-blue-300 border border-blue-500/40 flex items-center gap-2 whitespace-nowrap shadow-sm';
+    }
+    if (tabNexus) {
+      tabNexus.className = 'nav-tab px-4 py-2 rounded-xl font-bold transition-all text-indigo-300 hover:bg-indigo-600/20 border border-transparent hover:border-indigo-500/30 flex items-center gap-2 whitespace-nowrap';
+    }
   }
-
-  if (nexus.rate_inr) {
-    inrDisp.textContent = '₹' + formatPrice(nexus.rate_inr, 2);
-    rateDisp.textContent = `($${formatPrice(nexus.rate_usd, 4)} USD)`;
-  } else {
-    inrDisp.textContent = '₹--';
-    rateDisp.textContent = 'Ready for sync';
-  }
-
-  if (nexus.premium_pct_vs_market !== null && nexus.premium_pct_vs_market !== undefined) {
-    const isHigh = nexus.premium_pct_vs_market >= 0;
-    arbDisp.textContent = `${isHigh ? '+' : ''}${nexus.premium_pct_vs_market.toFixed(2)}% Premium`;
-    arbDisp.className = `font-mono font-bold ${isHigh ? 'text-emerald-400' : 'text-rose-400'}`;
-  }
-
-  methodDisp.textContent = nexus.sync_method ? nexus.sync_method.toUpperCase() : 'COMPANION';
-  lastSyncDisp.textContent = formatTime(nexus.last_sync_timestamp);
 }
 
 function updateSellingLadder(curInr, curUsd) {
@@ -932,6 +1010,8 @@ async function loadConfig() {
   document.getElementById('cfgTargetInr').value = clientSettings.target_sell_price_inr || '';
   document.getElementById('cfgTargetUsd').value = clientSettings.target_sell_price_usd || '';
   document.getElementById('calcHoldingsInput').value = clientSettings.user_holdings_bdx || 10000;
+  const cfgNexusPrem = document.getElementById('cfgNexusPremiumInr');
+  if (cfgNexusPrem) cfgNexusPrem.value = nexusSellingPremiumInr;
 
   // Channels
   document.getElementById('cfgTgEnabled').checked = clientSettings.telegram_enabled;
@@ -966,6 +1046,12 @@ document.getElementById('settingsForm').addEventListener('submit', async (e) => 
   clientSettings.target_sell_price_usd = parseFloat(document.getElementById('cfgTargetUsd').value) || 0.0;
   clientSettings.user_holdings_bdx = parseFloat(document.getElementById('calcHoldingsInput').value) || 10000.0;
   
+  const cfgNexusPrem = document.getElementById('cfgNexusPremiumInr');
+  if (cfgNexusPrem) {
+    nexusSellingPremiumInr = parseFloat(cfgNexusPrem.value) || 0.45;
+  }
+  updateNexusMenuUI();
+
   clientSettings.telegram_enabled = document.getElementById('cfgTgEnabled').checked;
   clientSettings.telegram_bot_token = document.getElementById('cfgTgToken').value;
   clientSettings.telegram_chat_id = document.getElementById('cfgTgChatId').value;
@@ -1221,13 +1307,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const openNexus = () => document.getElementById('nexusModal').classList.add('active');
   document.getElementById('btnOpenNexusModal').addEventListener('click', openNexus);
   document.getElementById('btnQuickNexusSync').addEventListener('click', openNexus);
-  document.getElementById('btnManualRate').addEventListener('click', () => {
-    if (!isAdmin) {
-      promptAdminLogin("Overriding nexus rates manually is restricted to Administrator.");
-      return;
-    }
-    openNexus();
-  });
+  const btnManual = document.getElementById('btnManualRate');
+  if (btnManual) {
+    btnManual.addEventListener('click', () => {
+      if (!isAdmin) {
+        promptAdminLogin("Overriding nexus rates manually is restricted to Administrator.");
+        return;
+      }
+      openNexus();
+    });
+  }
   document.getElementById('btnCloseNexusModal').addEventListener('click', () => {
     document.getElementById('nexusModal').classList.remove('active');
   });
@@ -1376,4 +1465,112 @@ document.addEventListener('DOMContentLoaded', () => {
       showToast('Simulation failed: ' + e.message, 'error');
     }
   });
+
+  // -------------------------------------------------------------
+  // Dedicated Nexus Menu & Navigation Tab Handlers
+  // -------------------------------------------------------------
+  const btnOpenNexusMenu = document.getElementById('btnOpenNexusMenu');
+  if (btnOpenNexusMenu) {
+    btnOpenNexusMenu.addEventListener('click', () => switchMainView('nexus'));
+  }
+
+  const btnCardOpenNexusMenu = document.getElementById('btnCardOpenNexusMenu');
+  if (btnCardOpenNexusMenu) {
+    btnCardOpenNexusMenu.addEventListener('click', () => switchMainView('nexus'));
+  }
+
+  const btnBackToDashboard = document.getElementById('btnBackToDashboard');
+  if (btnBackToDashboard) {
+    btnBackToDashboard.addEventListener('click', () => switchMainView('dashboard'));
+  }
+
+  const navTabDashboard = document.getElementById('navTabDashboard');
+  if (navTabDashboard) {
+    navTabDashboard.addEventListener('click', () => switchMainView('dashboard'));
+  }
+
+  const navTabNexusMenu = document.getElementById('navTabNexusMenu');
+  if (navTabNexusMenu) {
+    navTabNexusMenu.addEventListener('click', () => switchMainView('nexus'));
+  }
+
+  const navTabLadder = document.getElementById('navTabTargetLadder');
+  if (navTabLadder) {
+    navTabLadder.addEventListener('click', () => {
+      switchMainView('dashboard');
+      const ladderElem = document.getElementById('calcHoldingsInput');
+      if (ladderElem) ladderElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
+
+  // Nexus Calculator Input Handler
+  const nexusCalcInput = document.getElementById('nexusCalcHoldingsInput');
+  if (nexusCalcInput) {
+    nexusCalcInput.addEventListener('input', () => {
+      calculateNexusReturns();
+    });
+  }
+
+  // Calculator Preset Buttons
+  document.querySelectorAll('.btn-calc-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.btn-calc-preset').forEach(b => {
+        b.className = 'btn-calc-preset px-2.5 py-1 rounded bg-[#1e293b] hover:bg-indigo-600/30 text-xs font-mono text-slate-300';
+      });
+      btn.className = 'btn-calc-preset px-2.5 py-1 rounded bg-indigo-600/30 border border-indigo-500/40 text-xs font-mono text-indigo-200 font-bold';
+      if (nexusCalcInput) {
+        nexusCalcInput.value = btn.dataset.amount;
+        calculateNexusReturns();
+      }
+    });
+  });
+
+  // Copy Nexus Selling Price
+  const btnCopyNexusPrice = document.getElementById('btnCopyNexusPrice');
+  if (btnCopyNexusPrice) {
+    btnCopyNexusPrice.addEventListener('click', () => {
+      const actualInr = latestAnalysis ? latestAnalysis.current_price_inr : 6.66;
+      const sellingInr = (actualInr + nexusSellingPremiumInr).toFixed(4);
+      navigator.clipboard.writeText(`₹${sellingInr}`);
+      showToast(`Copied Nexus Selling Price (₹${sellingInr}) to clipboard!`, 'success');
+    });
+  }
+
+  // Open Bookmarklet from Nexus Menu
+  const btnOpenBmFromMenu = document.getElementById('btnOpenNexusBookmarkletFromMenu');
+  if (btnOpenBmFromMenu) {
+    btnOpenBmFromMenu.addEventListener('click', openNexus);
+  }
+
+  // Edit Nexus Premium (Admin Only)
+  const btnAdminEditNexusPremium = document.getElementById('btnAdminEditNexusPremium');
+  if (btnAdminEditNexusPremium) {
+    btnAdminEditNexusPremium.addEventListener('click', async () => {
+      if (!isAdmin) {
+        promptAdminLogin("Editing the Nexus Selling Premium is restricted to Administrator.");
+        return;
+      }
+      const newPrem = prompt("Enter new Nexus selling premium in INR / paise (Default: 0.45 for 45 paise):", nexusSellingPremiumInr.toString());
+      if (newPrem !== null) {
+        const val = parseFloat(newPrem);
+        if (!isNaN(val) && val >= 0) {
+          nexusSellingPremiumInr = val;
+          updateNexusMenuUI();
+          showToast(`✅ Nexus premium updated to ₹${val.toFixed(2)} (+${(val*100).toFixed(0)} paise)`, 'success');
+          if (!isStaticHosted && adminToken) {
+            try {
+              await fetch('/api/nexus/config', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${adminToken}`
+                },
+                body: JSON.stringify({ nexus_selling_premium_inr: val })
+              });
+            } catch (e) {}
+          }
+        }
+      }
+    });
+  }
 });

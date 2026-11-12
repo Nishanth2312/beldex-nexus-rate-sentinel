@@ -139,3 +139,42 @@ async def test_admin_protected_surge_simulation():
         )
         assert sim_auth.status_code == 200
         assert sim_auth.json()["status"] == "simulation_complete"
+
+@pytest.mark.asyncio
+async def test_nexus_selling_price_formula():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        # 1. Fetch Nexus pricing endpoint
+        res = await ac.get("/api/nexus/pricing?holdings=10000")
+        assert res.status_code == 200
+        data = res.json()
+
+        actual = data["actual_beldex_price_inr"]
+        premium = data["nexus_selling_premium_inr"]
+        selling = data["nexus_selling_price_inr"]
+        extra = data["holdings_extra_profit_inr"]
+
+        # Exact formula test: Selling Price = Actual Beldex Price + 0.45 paise (+₹0.45)
+        assert premium == 0.45
+        assert data["nexus_selling_premium_paise"] == 45.0
+        assert selling == round(actual + 0.45, 4)
+        assert extra == 4500.0  # 10,000 * 0.45 = ₹4,500.00 bonus
+
+        # 2. Test admin-protected nexus config
+        unauth_cfg = await ac.post("/api/nexus/config", json={"nexus_selling_premium_inr": 0.50})
+        assert unauth_cfg.status_code == 401
+
+        # 3. Authenticated config update
+        login = await ac.post("/api/auth/login", json={
+            "username": settings.admin_username,
+            "password": settings.admin_password
+        })
+        token = login.json()["token"]
+
+        auth_cfg = await ac.post(
+            "/api/nexus/config",
+            json={"nexus_selling_premium_inr": 0.45},
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        assert auth_cfg.status_code == 200
+        assert auth_cfg.json()["nexus_selling_premium_inr"] == 0.45

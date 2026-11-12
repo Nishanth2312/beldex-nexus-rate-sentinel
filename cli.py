@@ -85,14 +85,66 @@ async def cmd_status():
     for src, t in snapshot.sources.items():
         print(f"  • {src.upper():<10}: ₹{t.price_inr:.2f} (${t.price_usd:.4f}) [24h: {t.change_24h_pct:+.2f}%]")
 
-    # Nexus.vin state
-    print(f"\n{COLOR_BOLD}Nexus.vin Portal:{COLOR_RESET}")
-    print(f"  Status: {nexus_client.state.status} ({nexus_client.state.status_detail})")
-    if nexus_client.state.rate_inr:
-        print(f"  Nexus Rate: ₹{nexus_client.state.rate_inr:.2f} (~${nexus_client.state.rate_usd:.4f} USD)")
-        if nexus_client.state.premium_pct_vs_market:
-            print(f"  Arbitrage vs Market: {nexus_client.state.premium_pct_vs_market:+.2f}%")
+    # Nexus.vin state & Selling Formula
+    nexus_state = nexus_client.calculate_selling_price(
+        actual_inr=analysis.current_price_inr,
+        actual_usd=analysis.current_price_usd,
+        holdings_bdx=analysis.holdings_bdx,
+        premium_inr=settings.nexus_selling_premium_inr
+    )
+    print(f"\n{COLOR_BOLD}{COLOR_BLUE}=== NEXUS.VIN DEDICATED SELLING MENU ==={COLOR_RESET}")
+    print(f"  Formula: {COLOR_BOLD}Selling Price = Actual Beldex Price + 0.45 paise (+₹0.45){COLOR_RESET}")
+    print(f"  • Actual Market Rate   : ₹{nexus_state.actual_beldex_price_inr:.2f} (~${nexus_state.actual_beldex_price_usd:.4f} USD)")
+    print(f"  • Nexus Premium (+45p) : {COLOR_GREEN}+₹{nexus_state.nexus_selling_premium_inr:.2f} (+{nexus_state.nexus_selling_premium_paise:.0f} paise){COLOR_RESET}")
+    print(f"  • Nexus Selling Rate   : {COLOR_BOLD}{COLOR_GREEN}₹{nexus_state.nexus_selling_price_inr:.2f}{COLOR_RESET} (~${nexus_state.nexus_selling_price_usd:.4f} USD)")
+    print(f"  • Arbitrage Boost      : {COLOR_GREEN}+{nexus_state.premium_pct_vs_market:.2f}% above market{COLOR_RESET}")
+    print(f"  • Total Holdings Payout: ₹{nexus_state.holdings_nexus_value_inr:,.0f} (Regular: ₹{nexus_state.holdings_regular_value_inr:,.0f})")
+    print(f"  • Extra Bonus Profit   : {COLOR_BOLD}{COLOR_GREEN}+₹{nexus_state.holdings_extra_profit_inr:,.0f}{COLOR_RESET}")
+    print(f"  • Status Detail        : {nexus_state.status_detail}")
     print(f"{COLOR_BLUE}=========================================={COLOR_RESET}\n")
+
+async def cmd_nexus(holdings: float, premium: float):
+    await init_db()
+    print(f"\n{COLOR_BOLD}{COLOR_BLUE}===================================================={COLOR_RESET}")
+    print(f"{COLOR_BOLD}{COLOR_GREEN}   NEXUS.VIN DEDICATED SELLING MENU & CALCULATOR    {COLOR_RESET}")
+    print(f"{COLOR_BOLD}{COLOR_BLUE}===================================================={COLOR_RESET}")
+    analysis = await rate_analyzer.analyze_current_rate()
+    if not analysis:
+        # Fallback fetch
+        snapshot = await market_feed.get_market_snapshot()
+        actual_inr = snapshot.composite_price_inr if snapshot else 6.66
+        actual_usd = snapshot.composite_price_usd if snapshot else 0.0710
+    else:
+        actual_inr = analysis.current_price_inr
+        actual_usd = analysis.current_price_usd
+
+    state = nexus_client.calculate_selling_price(
+        actual_inr=actual_inr,
+        actual_usd=actual_usd,
+        holdings_bdx=holdings,
+        premium_inr=premium
+    )
+
+    print(f"\n{COLOR_YELLOW}⚡ SELLING FORMULA RULE:{COLOR_RESET}")
+    print(f"   Selling Price = Actual Beldex Price + 0.45 paise (+₹0.45 INR)\n")
+    print(f"📊 {COLOR_BOLD}Live Pricing Breakdown:{COLOR_RESET}")
+    print(f"   • Actual Beldex Rate (Market) : ₹{state.actual_beldex_price_inr:.4f} (${state.actual_beldex_price_usd:.4f} USD)")
+    print(f"   • Nexus Selling Premium       : {COLOR_GREEN}+₹{state.nexus_selling_premium_inr:.2f} (+{state.nexus_selling_premium_paise:.0f} Paise){COLOR_RESET}")
+    print(f"   • 💎 NEXUS SELLING PRICE      : {COLOR_BOLD}{COLOR_GREEN}₹{state.nexus_selling_price_inr:.4f}{COLOR_RESET} (${state.nexus_selling_price_usd:.4f} USD)")
+    print(f"   • Arbitrage Gain vs Market    : {COLOR_GREEN}+{state.premium_pct_vs_market:.2f}% Premium{COLOR_RESET}")
+
+    print(f"\n💰 {COLOR_BOLD}Selling Payout for {holdings:,.0f} BDX Coins:{COLOR_RESET}")
+    print(f"   • Regular Market Proceeds     : ₹{state.holdings_regular_value_inr:,.2f}")
+    print(f"   • 🚀 NEXUS TOTAL PROCEEDS     : {COLOR_BOLD}{COLOR_GREEN}₹{state.holdings_nexus_value_inr:,.2f}{COLOR_RESET}")
+    print(f"   • 🎁 Extra Net Profit Earned  : {COLOR_BOLD}{COLOR_GREEN}+₹{state.holdings_extra_profit_inr:,.2f}{COLOR_RESET}")
+
+    if analysis and analysis.diff_30m_pct is not None:
+        p_color = COLOR_GREEN if analysis.diff_30m_pct >= 0 else COLOR_RED
+        print(f"\n⏳ 30-Minute Market Trend         : {p_color}{analysis.diff_30m_pct:+.2f}%{COLOR_RESET}")
+        print(f"🎯 Action Recommendation          : {COLOR_BOLD}{analysis.recommendation}{COLOR_RESET}")
+
+    print(f"\n🔗 Direct Action: Visit https://nexus.vin to execute your sale!")
+    print(f"{COLOR_BLUE}===================================================={COLOR_RESET}\n")
 
 async def cmd_monitor(interval_sec: int):
     await init_db()
@@ -183,10 +235,17 @@ def main():
     nex_p.add_argument("--usd", type=float, help="Rate in USD")
     nex_p.add_argument("--inr", type=float, help="Rate in INR")
 
+    # nexus
+    nexus_p = subparsers.add_parser("nexus", help="Dedicated Nexus selling menu (Selling = Actual + 0.45 paise)")
+    nexus_p.add_argument("--holdings", type=float, default=10000.0, help="Number of BDX coins (default: 10000)")
+    nexus_p.add_argument("--premium", type=float, default=0.45, help="Selling premium in INR/paise (default: 0.45)")
+
     args = parser.parse_args()
 
     if args.command == "status":
         asyncio.run(cmd_status())
+    elif args.command == "nexus":
+        asyncio.run(cmd_nexus(args.holdings, args.premium))
     elif args.command == "monitor":
         asyncio.run(cmd_monitor(args.interval))
     elif args.command == "test-alert":

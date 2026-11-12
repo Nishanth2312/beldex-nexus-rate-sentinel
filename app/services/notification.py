@@ -210,30 +210,38 @@ class NotificationService:
         sign = "+" if cur_inr >= p_30m_inr else "-"
         profit_inr = (cur_inr - p_30m_inr) * holdings
 
-        # 1. SMS Message (Short, actionable, INR-focused)
+        # Nexus Selling Formula: Selling Price = Actual Beldex Price + 0.45 paise (+₹0.45 INR)
+        nexus_prem = settings.nexus_selling_premium_inr
+        nexus_sell_inr = round(cur_inr + nexus_prem, 4)
+        nexus_port_inr = round(nexus_sell_inr * holdings, 2)
+        nexus_bonus_inr = round(nexus_prem * holdings, 2)
+
+        # 1. SMS Message (Short, actionable, INR-focused + Nexus formula)
         sms_text = (
             f"🚨 BELDEX HIGH DEMAND ALERT!\n"
             f"30m Surge: +{diff_pct:.2f}% ({sign}Rs {diff_inr_abs:.2f})\n"
-            f"Current Rate: Rs {cur_inr:.2f} (${cur_usd:.4f})\n"
-            f"Rate 30m Ago: Rs {p_30m_inr:.2f}\n"
-            f"Your {holdings:,.0f} BDX = Rs {port_inr:,.0f}\n"
-            f"High Demand Window! Check Nexus.vin."
+            f"Market Rate: Rs {cur_inr:.2f} (${cur_usd:.4f})\n"
+            f"💎 Nexus Sell Price: Rs {nexus_sell_inr:.2f} (+45p)\n"
+            f"Holdings ({holdings:,.0f} BDX): Rs {nexus_port_inr:,.0f} (+Rs {nexus_bonus_inr:,.0f} bonus)\n"
+            f"Sell on Nexus.vin now!"
         )
 
-        # 2. Telegram Message (Markdown formatted, INR first)
+        # 2. Telegram Message (Markdown formatted, INR first + Nexus breakdown)
         tg_text = (
             f"🚨 *BELDEX (BDX) HIGH DEMAND ALERT!*\n\n"
             f"📈 *30-Min Surge*: `+{diff_pct:.2f}%` (`{sign}₹{diff_inr_abs:.2f}`)\n"
-            f"💵 *Current BDX Rate*: `₹{cur_inr:.2f}` (`${cur_usd:.4f}` USD)\n"
+            f"💵 *Actual Market Rate*: `₹{cur_inr:.2f}` (`${cur_usd:.4f}` USD)\n"
+            f"💎 *Nexus Selling Price*: `₹{nexus_sell_inr:.2f}` _(Actual + 45 paise)_\n"
             f"⏳ *Rate 30m Ago*: `₹{p_30m_inr:.2f}`\n"
-            f"💼 *Holdings Value ({holdings:,.0f} BDX)*: `₹{port_inr:,.0f}` (`${port_usd:,.2f}`)\n"
+            f"💼 *Holdings Value ({holdings:,.0f} BDX)*: `₹{port_inr:,.0f}`\n"
+            f"💰 *Nexus Payout Total*: `₹{nexus_port_inr:,.0f}` (`+₹{nexus_bonus_inr:,.0f}` extra gain)\n"
             f"🔥 *30m Profit Gain*: `+₹{profit_inr:,.0f}`\n\n"
-            f"💡 *Action*: HIGH PRICE DEMAND - Optimal opportunity to sell coins on Nexus.vin!\n"
+            f"💡 *Action*: HIGH PRICE DEMAND - Optimal opportunity to sell coins on Nexus.vin at ₹{nexus_sell_inr:.2f}!\n"
             f"⏰ *Time*: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}"
         )
 
-        # 3. Email Subject & HTML Body (INR-focused)
-        email_subj = f"🚨 BELDEX ALERT: +{diff_pct:.2f}% Surge in 30 Mins (₹{cur_inr:.2f} / ${cur_usd:.4f})"
+        # 3. Email Subject & HTML Body (INR-focused + Nexus Selling Price)
+        email_subj = f"🚨 BELDEX ALERT: +{diff_pct:.2f}% Surge | Nexus Selling: ₹{nexus_sell_inr:.2f} (+45p)"
         email_html = f"""
         <html>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #f8fafc; padding: 24px; margin: 0;">
@@ -256,6 +264,14 @@ class NotificationService:
               </div>
               
               <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px;">
+                <tr style="border-bottom: 1px solid #334155; background: rgba(99, 102, 241, 0.15);">
+                  <td style="padding: 10px 0; color: #a5b4fc; font-weight: bold;">💎 Nexus Selling Price (+45p):</td>
+                  <td style="padding: 10px 0; text-align: right; font-weight: 800; color: #818cf8; font-size: 16px;">₹{nexus_sell_inr:.2f}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #334155; background: rgba(99, 102, 241, 0.15);">
+                  <td style="padding: 10px 0; color: #a5b4fc;">Nexus Total Payout:</td>
+                  <td style="padding: 10px 0; text-align: right; font-weight: 800; color: #a5b4fc;">₹{nexus_port_inr:,.0f} (+₹{nexus_bonus_inr:,.0f} extra)</td>
+                </tr>
                 <tr style="border-bottom: 1px solid #334155;">
                   <td style="padding: 10px 0; color: #94a3b8;">Rate 30 Mins Ago:</td>
                   <td style="padding: 10px 0; text-align: right; font-weight: 600;">₹{p_30m_inr:.2f} (${p_30m_usd:.4f})</td>
@@ -265,7 +281,7 @@ class NotificationService:
                   <td style="padding: 10px 0; text-align: right; font-weight: 600;">{holdings:,.0f} BDX</td>
                 </tr>
                 <tr style="border-bottom: 1px solid #334155;">
-                  <td style="padding: 10px 0; color: #94a3b8;">Total Portfolio Sell Value:</td>
+                  <td style="padding: 10px 0; color: #94a3b8;">Regular Exchange Value:</td>
                   <td style="padding: 10px 0; text-align: right; font-weight: 800; color: #38bdf8;">₹{port_inr:,.0f} (${port_usd:,.2f})</td>
                 </tr>
                 <tr>
@@ -296,10 +312,11 @@ class NotificationService:
 
         # 4. Discord Embed
         discord_fields = [
-            {"name": "Current Rate (INR)", "value": f"₹{cur_inr:.2f} (${cur_usd:.4f})", "inline": True},
+            {"name": "Actual Rate (INR)", "value": f"₹{cur_inr:.2f} (${cur_usd:.4f})", "inline": True},
+            {"name": "💎 Nexus Selling Rate", "value": f"₹{nexus_sell_inr:.2f} (+45p)", "inline": True},
             {"name": "30m Change", "value": f"+{diff_pct:.2f}% ({sign}₹{diff_inr_abs:.2f})", "inline": True},
-            {"name": "30m Ago Rate", "value": f"₹{p_30m_inr:.2f}", "inline": True},
-            {"name": "Portfolio Value", "value": f"₹{port_inr:,.0f} (${port_usd:,.2f})", "inline": True},
+            {"name": "Nexus Payout", "value": f"₹{nexus_port_inr:,.0f} (+₹{nexus_bonus_inr:,.0f} gain)", "inline": True},
+            {"name": "Regular Market Value", "value": f"₹{port_inr:,.0f}", "inline": True},
             {"name": "Trigger Reason", "value": " • ".join(reasons) if reasons else "30m Surge", "inline": False}
         ]
 

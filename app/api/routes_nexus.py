@@ -19,6 +19,12 @@ class NexusManualRatePayload(BaseModel):
     rate_usd: Optional[float] = None
     rate_inr: Optional[float] = None
 
+class NexusConfigPayload(BaseModel):
+    nexus_selling_premium_inr: Optional[float] = None
+    nexus_url: Optional[str] = None
+    nexus_cookie: Optional[str] = None
+    nexus_auth_token: Optional[str] = None
+
 class NexusCredentialsPayload(BaseModel):
     nexus_url: Optional[str] = None
     nexus_cookie: Optional[str] = None
@@ -32,13 +38,75 @@ async def get_nexus_status():
     """
     latest_market = await rate_analyzer.analyze_current_rate()
     if latest_market:
+        nexus_client.calculate_selling_price(
+            actual_inr=latest_market.current_price_inr,
+            actual_usd=latest_market.current_price_usd,
+            holdings_bdx=settings.user_holdings_bdx,
+            premium_inr=settings.nexus_selling_premium_inr
+        )
         nexus_client.calculate_arbitrage(latest_market.current_price_usd)
 
     return {
         "state": nexus_client.state.model_dump(),
         "nexus_url": settings.nexus_url,
+        "nexus_selling_premium_inr": settings.nexus_selling_premium_inr,
+        "formula": f"Selling Price = Actual Beldex Price + {settings.nexus_selling_premium_inr} INR ({round(settings.nexus_selling_premium_inr * 100, 1)} paise)",
         "is_cookie_configured": bool(settings.nexus_cookie),
         "is_token_configured": bool(settings.nexus_auth_token)
+    }
+
+@router.get("/pricing")
+async def get_nexus_pricing(holdings: Optional[float] = None, premium: Optional[float] = None):
+    """
+    Dedicated Nexus Menu pricing calculator:
+    Selling Price = Actual Beldex Price + 0.45 paise (+₹0.45 INR).
+    """
+    latest_market = await rate_analyzer.analyze_current_rate()
+    actual_inr = latest_market.current_price_inr if latest_market else 6.66
+    actual_usd = latest_market.current_price_usd if latest_market else 0.0710
+    holdings_qty = holdings if (holdings and holdings > 0) else settings.user_holdings_bdx
+    prem_inr = premium if premium is not None else settings.nexus_selling_premium_inr
+
+    state = nexus_client.calculate_selling_price(
+        actual_inr=actual_inr,
+        actual_usd=actual_usd,
+        holdings_bdx=holdings_qty,
+        premium_inr=prem_inr
+    )
+    return {
+        "formula": f"Selling Price = Actual Beldex Price + {prem_inr} INR ({round(prem_inr * 100, 1)} paise)",
+        "actual_beldex_price_inr": state.actual_beldex_price_inr,
+        "actual_beldex_price_usd": state.actual_beldex_price_usd,
+        "nexus_selling_premium_inr": state.nexus_selling_premium_inr,
+        "nexus_selling_premium_paise": state.nexus_selling_premium_paise,
+        "nexus_selling_price_inr": state.nexus_selling_price_inr,
+        "nexus_selling_price_usd": state.nexus_selling_price_usd,
+        "premium_percent": state.premium_pct_vs_market,
+        "holdings_bdx": holdings_qty,
+        "holdings_regular_value_inr": state.holdings_regular_value_inr,
+        "holdings_nexus_value_inr": state.holdings_nexus_value_inr,
+        "holdings_extra_profit_inr": state.holdings_extra_profit_inr
+    }
+
+@router.post("/config")
+async def update_nexus_config(payload: NexusConfigPayload, admin: str = Depends(require_admin)):
+    """
+    Update Nexus settings and premium offset (Admin Only).
+    """
+    if payload.nexus_selling_premium_inr is not None:
+        settings.nexus_selling_premium_inr = payload.nexus_selling_premium_inr
+    if payload.nexus_url is not None:
+        settings.nexus_url = payload.nexus_url
+    if payload.nexus_cookie is not None:
+        settings.nexus_cookie = payload.nexus_cookie
+    if payload.nexus_auth_token is not None:
+        settings.nexus_auth_token = payload.nexus_auth_token
+
+    return {
+        "status": "success",
+        "message": "Nexus configuration updated successfully",
+        "nexus_selling_premium_inr": settings.nexus_selling_premium_inr,
+        "formula": f"Selling Price = Actual Beldex Price + {settings.nexus_selling_premium_inr} INR"
     }
 
 @router.post("/sync")
