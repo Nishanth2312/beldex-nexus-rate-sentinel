@@ -1,40 +1,52 @@
-# 🛡️ Beldex Nexus Rate Sentinel
+# 🛡️ SENTRIX
+> **Security, Precision and Intelligence**  
+> *Autonomous Beldex (BDX) Rate Difference, Nexus Selling Engine & High-Demand Surge Sentinel*
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-brightgreen?style=for-the-badge&logo=github)](https://nishanth2312.github.io/beldex-nexus-rate-sentinel/)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.162%2B-009688.svg)](https://fastapi.tiangolo.com/)
-[![Tests](https://img.shields.io/badge/Tests-8%20Passed%20(100%25)-brightgreen.svg)](#automated-testing)
+[![Tests](https://img.shields.io/badge/Tests-11%20Passed%20(100%25)-brightgreen.svg)](#automated-testing)
 
 > 🌐 **Live Testing Web App (Zero-Install):**  
 > 👉 **[https://nishanth2312.github.io/beldex-nexus-rate-sentinel/](https://nishanth2312.github.io/beldex-nexus-rate-sentinel/)**  
-> Test live real-time rate differences, audio chimes, price spike simulations, and Telegram alerts directly in your browser without installing anything!
+> Test live real-time INR rate differences, audio chimes, price spike simulations, and Telegram alerts directly in your browser without installing anything!
 
-An autonomous, cross-platform cryptocurrency monitoring and high-demand selling alert platform designed specifically for **Beldex (BDX)** and **nexus.vin** traders.
+---
 
-It continuously tracks live market prices across global exchanges (KuCoin Tier-1 Primary, Gate.io, MEXC), calculates exact **30-minute rolling rate differences**, monitors **nexus.vin**, and instantly dispatches **multi-channel alerts via SMS, Email, Telegram, Discord, and Web Audio chimes** whenever high price demand is detected so you can liquidate or sell your coins at peak value.
+### 🛡️ The Meaning of Sentrix
+- **Security**: Hardened Admin authentication (`admin` / `Admin@Beldex2026!`) safeguarding all alert channels, API keys, and sensitive trade thresholds against unauthorized access.
+- **Precision**: Sub-second multi-exchange rate telemetry (KuCoin Tier-1 Primary, Gate.io, MEXC) with exact rolling **10-minute and 30-minute difference calculations** in **Indian Rupees (₹ INR)**.
+- **Intelligence**: Automated high price demand surge detection, dedicated **Nexus Selling Menu** ($\text{Selling Price} = \text{Actual Beldex Price} + \text{0.45 paise}$), and instant multi-channel alert dispatch (SMS, Telegram, Email, Discord).
 
 ---
 
 ## 🌟 Key Features
 
-1. **30-Minute Rate Difference & Demand Detection Engine**:
-   - Computes rolling 30-minute absolute difference ($\Delta P = P_{\text{now}} - P_{\text{30m\_ago}}$) and percentage change ($\% \Delta$).
-   - Multi-window matrix: 5m, 15m, 30m, 1h, and 24h intervals.
-   - Evaluates high price demand spikes against your configurable threshold (e.g., $+3.0\%$, $+5.0\%$, $+10.0\%$).
-   - Flags actionable signals: `"STRONG SELL OPPORTUNITY"`, `"TARGET SELL PRICE REACHED"`, `"HIGH DEMAND DETECTED"`.
+1. **Autonomous 10m & 30m Rate Difference Engine**:
+   - Primary currency defaulted to **Indian Rupees (₹ INR)** across all rates, profits, and analytics.
+   - Computes rolling 10-minute and 30-minute differences ($\Delta P = P_{\text{now}} - P_{\text{past}}$) and percentage change ($\% \Delta$).
+   - Multi-window matrix: 5m, 10m, 15m, 30m, 1h, and 24h intervals with auto-refresh cadence every 10 minutes (`10:00` live countdown timer).
 
-2. **nexus.vin Integration & Arbitrage**:
-   - **1-Click Browser Companion Bookmarklet**: Since `nexus.vin` uses Cloudflare Turnstile protection, the companion bookmarklet allows you to click once in your logged-in browser tab to relay authenticated live rates directly to your Sentinel dashboard!
-   - **Direct Session Poller**: Supports passing session cookies (`cf_clearance`, `PHPSESSID`) or Bearer tokens.
-   - **Arbitrage Calculator**: Quantifies the price spread between `nexus.vin` and global exchanges (e.g. `+5.4% Premium on Nexus!`).
+2. **Dedicated Nexus Selling Menu (+0.45 Paise Premium)**:
+   - Built-in Nexus Menu implementing the strict formula:
+     $$\text{Nexus Selling Price (INR)} = \text{Actual Beldex Market Rate (INR)} + ₹0.45$$
+   - Live interactive calculator computing total INR payout and bonus earnings across your exact coin holdings.
 
-3. **Multi-Channel Selling Alert System**:
-   - **SMS Notifications**: Native integration with Twilio and Fast2SMS (ideal for Indian mobile numbers) or generic SMS Webhooks.
-   - **Email Notifications**: Rich HTML templates with coin graphics, price tables, 30m profit gains, and one-click sell links.
-   - **Telegram Bot**: Instant mobile push notifications with formatted Markdown tables and high-priority sound.
-   - **Discord & Webhooks**: Rich color-coded embeds for community or channel notifications.
-   - **In-App Web Audio Chimes**: Synthesizes audible trading fanfares directly in your browser when a spike occurs.
-   - **1-Click Test Dispatcher**: Test and verify any notification channel with a single click before leaving it running.
+3. **Admin Authentication & Access Control**:
+   - All alert configurations, channel settings (Telegram tokens, Twilio SID, SMTP, Discord Webhooks), and Nexus thresholds are restricted to **Admin alone**.
+   - Default credentials:
+     - **Username**: `admin`
+     - **Password**: `Admin@Beldex2026!`
+
+4. **1-Click Browser Companion Bookmarklet**:
+   - Overcomes Cloudflare Turnstile anti-bot checks on `nexus.vin` by capturing live rates from your authenticated browser tab and securely syncing directly to your Sentrix dashboard.
+
+5. **Multi-Channel Selling Alert System**:
+   - **SMS Notifications**: Native integration with Twilio and Fast2SMS (for Indian mobile numbers).
+   - **Telegram Bot**: Instant mobile push notifications formatted in clean Markdown with INR rates and Nexus breakdown.
+   - **Email Notifications**: Responsive HTML templates with profit gains and direct action links.
+   - **Discord Webhooks**: Color-coded embed cards with surge percentages and timestamps.
+   - **In-App Web Audio Chimes**: Synthesizes audible trading fanfares directly in your browser when a high-demand surge occurs.
 
 4. **Portfolio Liquidation Calculator**:
    - Enter your Beldex holdings (e.g. `50,000 BDX`).
@@ -63,10 +75,10 @@ flowchart TD
         DS["Direct Session Poller (cf_clearance / Cookie)"]
     end
 
-    subgraph Sentinel_Core ["Sentinel Engine (Python / FastAPI / SQLite)"]
-        SCHED["24/7 Async Polling Scheduler"]
+    subgraph Sentrix_Core ["Sentrix Engine (Python / FastAPI / SQLite)"]
+        SCHED["24/7 Async Polling Scheduler (10m Cadence)"]
         DB[("SQLite Time-Series Database (sentinel.db)")]
-        ANA["30-Minute Rate Difference & Surge Analyzer"]
+        ANA["10m & 30m Rate Difference & Surge Analyzer"]
         NOTIF["Multi-Channel Alert Dispatcher"]
         WS["Real-Time WebSocket Server (/ws/live)"]
     end
@@ -88,8 +100,8 @@ flowchart TD
     KC --> SCHED
     CG --> SCHED
     MX --> SCHED
-    CB -->|POST /api/nexus/sync| Sentinel_Core
-    DS --> Sentinel_Core
+    CB -->|POST /api/nexus/sync| Sentrix_Core
+    DS --> Sentrix_Core
 
     SCHED --> DB
     SCHED --> ANA
@@ -102,7 +114,7 @@ flowchart TD
 
     SCHED --> WS
     WS --> DASH
-    Sentinel_Core --> CLI
+    Sentrix_Core --> CLI
 ```
 
 ---
@@ -168,10 +180,10 @@ For headless servers, background screen sessions, or quick terminal checks, use 
 
 ## 🔗 How to Sync with nexus.vin
 
-`nexus.vin` protects its web pages with Cloudflare Turnstile anti-bot checks. The Sentinel provides **three compliant methods** to capture live rates:
+`nexus.vin` protects its web pages with Cloudflare Turnstile anti-bot checks. Sentrix provides **three compliant methods** to capture live rates:
 
 ### Method A: 1-Click Browser Bookmarklet (Recommended)
-1. Open the Sentinel dashboard at `http://localhost:8080`.
+1. Open the Sentrix dashboard at `http://localhost:8080`.
 2. Click **Nexus Sync** on the top navigation bar.
 3. Drag the **📌 Sync Nexus Rate** button into your browser's bookmarks bar (or click "Copy JavaScript Code" and save it as a bookmark URL).
 4. In your browser, log in to **https://nexus.vin**.
@@ -182,7 +194,7 @@ For headless servers, background screen sessions, or quick terminal checks, use 
 If you prefer automated polling:
 1. Open Developer Tools (F12) on `https://nexus.vin` while logged in.
 2. Copy your `Cookie` header string (including `cf_clearance` and session tokens).
-3. Paste it in `.env` under `NEXUS_COOKIE="..."` or enter it via the **Alerts & Config** modal.
+3. Paste it in `.env` under `NEXUS_COOKIE="..."` or enter it via the **Alerts & Sentrix Settings** modal.
 
 ### Method C: Manual Rate Input
 Enter the current rate via the **Input Rate** button in the dashboard or CLI:
@@ -194,13 +206,13 @@ Enter the current rate via the **Input Rate** button in the dashboard or CLI:
 
 ## 🔔 Configuring Alerts (SMS, Email, Telegram, Discord)
 
-All alerts can be configured in real-time either via the **Alerts & Config** modal on the web UI or by editing `.env`.
+All alerts can be configured in real-time either via the **Alerts & Sentrix Settings** modal on the web UI or by editing `.env`.
 
 ### 1. Telegram Bot (Free, Instant Mobile Push)
 1. Open Telegram and search for `@BotFather`.
 2. Create a bot using `/newbot` and copy your **Bot Token**.
 3. Message `@userinfobot` to get your **Chat ID**.
-4. In Sentinel settings, enable Telegram, paste the token and chat ID, then click **Test Telegram**.
+4. In Sentrix settings, enable Telegram, paste the token and chat ID, then click **Test Telegram**.
 
 ### 2. Email Notifications (Gmail / Outlook / SMTP)
 - For Gmail:

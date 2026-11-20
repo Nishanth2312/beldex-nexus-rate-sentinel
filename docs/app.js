@@ -1,5 +1,6 @@
 /**
- * Beldex Nexus Rate Sentinel Frontend Application Logic (INR Primary + Admin Access Control)
+ * Sentrix — Security, Precision and Intelligence
+ * Autonomous Beldex Rate & Nexus Selling Engine (INR Primary + Admin Access Control)
  */
 
 // State
@@ -254,7 +255,7 @@ function updateHeroDisplay(analysis) {
       banner.className = "mt-4 p-3 rounded-lg bg-emerald-950/40 border border-emerald-500/30 flex items-center gap-3";
       signalTitle.className = "text-xs font-bold text-emerald-400 uppercase tracking-wide";
       signalTitle.textContent = analysis.recommendation || "HOLD / MONITOR";
-      signalDesc.textContent = `30m INR Diff is ${sign}₹${Math.abs(diffInr || 0).toFixed(2)} (${sign}${diffPct.toFixed(2)}%). Sentinel will alert you on high demand spikes.`;
+      signalDesc.textContent = `30m INR Diff is ${sign}₹${Math.abs(diffInr || 0).toFixed(2)} (${sign}${diffPct.toFixed(2)}%). Sentrix will alert you on high demand spikes.`;
       glow.className = "absolute -right-20 -top-20 w-80 h-80 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none";
     }
   }
@@ -833,7 +834,7 @@ function renderAlertsList(alerts) {
     tbody.innerHTML = `
       <tr>
         <td colspan="6" class="py-6 text-center text-slate-500">
-          No alerts triggered yet. Sentinel is monitoring 24/7 for 30m high demand price surges.
+          No alerts triggered yet. Sentrix is monitoring 24/7 for 10m & 30m high demand price surges.
         </td>
       </tr>`;
     countBadge.textContent = '0 Alerts';
@@ -958,7 +959,7 @@ window.testChannel = async function(channel) {
         return;
       }
       try {
-        const text = "🧪 *BELDEX SENTINEL TEST ALERT (Telegram)*\n\n✅ GitHub Pages direct Telegram alerts in INR are working properly!";
+        const text = "🧪 *SENTRIX TEST ALERT (Telegram)*\n\n🛡️ *Security • Precision • Intelligence*\n\n✅ GitHub Pages direct Telegram alerts in INR are working properly!";
         const res = await fetch(`https://api.telegram.org/bot${clientSettings.telegram_bot_token}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -983,7 +984,7 @@ window.testChannel = async function(channel) {
         const res = await fetch(clientSettings.discord_webhook_url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: "🧪 **BELDEX SENTINEL**: Discord Webhook test in INR successful!" })
+          body: JSON.stringify({ content: "🧪 **SENTRIX**: Security • Precision • Intelligence - Discord Webhook test in INR successful!" })
         });
         if (res.ok) {
           playAlertChime();
@@ -1085,7 +1086,7 @@ async function loadConfig() {
 document.getElementById('settingsForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!isAdmin) {
-    promptAdminLogin("Admin login required to modify sentinel settings.");
+    promptAdminLogin("Admin login required to modify Sentrix settings.");
     return;
   }
 
@@ -1143,7 +1144,7 @@ document.getElementById('settingsForm').addEventListener('submit', async (e) => 
 // Setup Bookmarklet Code
 function setupBookmarklet() {
   const port = window.location.port || '8080';
-  const script = `javascript:(function(){try{var text=document.body.innerText;var bdxMatch=text.match(/(?:BDX|Beldex)[^0-9]*([0-9]+(?:\\.[0-9]+)?)/i);var inrMatch=text.match(/(?:₹|INR|Rs)[^0-9]*([0-9]+(?:\\.[0-9]+)?)/i);var usdMatch=text.match(/(?:\\$|USDT|USD)[^0-9]*([0-9]+(?:\\.[0-9]+)?)/i);var rate_usd=usdMatch?parseFloat(usdMatch[1]):null;var rate_inr=inrMatch?parseFloat(inrMatch[1]):null;if(!rate_usd&&!rate_inr&&bdxMatch){rate_usd=parseFloat(bdxMatch[1]);}if(!rate_usd&&!rate_inr){var promptRate=prompt("Enter current Beldex INR rate seen on Nexus:","7.00");if(promptRate)rate_inr=parseFloat(promptRate);}fetch('http://localhost:${port}/api/nexus/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rate_usd:rate_usd,rate_inr:rate_inr,note:'Nexus Browser Tab ('+window.location.host+')'})}).then(r=>r.json()).then(data=>{alert('✅ Beldex Rate successfully synced to Sentinel Dashboard!\\nRate: ₹'+(rate_inr?rate_inr:rate_usd*93.85));}).catch(err=>{alert('❌ Could not connect to Beldex Sentinel (http://localhost:${port}).\\nMake sure the app is running!');});}catch(e){alert('Error running bookmarklet: '+e.message);}})();`;
+  const script = `javascript:(function(){try{var text=document.body.innerText;var bdxMatch=text.match(/(?:BDX|Beldex)[^0-9]*([0-9]+(?:\\.[0-9]+)?)/i);var inrMatch=text.match(/(?:₹|INR|Rs)[^0-9]*([0-9]+(?:\\.[0-9]+)?)/i);var usdMatch=text.match(/(?:\\$|USDT|USD)[^0-9]*([0-9]+(?:\\.[0-9]+)?)/i);var rate_usd=usdMatch?parseFloat(usdMatch[1]):null;var rate_inr=inrMatch?parseFloat(inrMatch[1]):null;if(!rate_usd&&!rate_inr&&bdxMatch){rate_usd=parseFloat(bdxMatch[1]);}if(!rate_usd&&!rate_inr){var promptRate=prompt("Enter current Beldex INR rate seen on Nexus:","7.00");if(promptRate)rate_inr=parseFloat(promptRate);}fetch('http://localhost:${port}/api/nexus/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rate_usd:rate_usd,rate_inr:rate_inr,note:'Nexus Browser Tab ('+window.location.host+')'})}).then(r=>r.json()).then(data=>{alert('✅ Beldex Rate successfully synced to Sentrix Dashboard!\\nRate: ₹'+(rate_inr?rate_inr:rate_usd*93.85));}).catch(err=>{alert('❌ Could not connect to Sentrix (http://localhost:${port}).\\nMake sure the app is running!');});}catch(e){alert('Error running bookmarklet: '+e.message);}})();`;
 
   const anchor = document.getElementById('bookmarkletAnchor');
   if (anchor) anchor.setAttribute('href', script);
@@ -1393,7 +1394,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Settings Button (Admin Protected)
   document.getElementById('btnOpenSettings').addEventListener('click', () => {
     if (!isAdmin) {
-      promptAdminLogin("Alert configuration and sentinel settings are restricted to Admin alone.");
+      promptAdminLogin("Alert configuration and Sentrix settings are restricted to Admin alone.");
       return;
     }
     document.getElementById('settingsModal').classList.add('active');

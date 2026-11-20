@@ -9,7 +9,7 @@ import httpx
 from app.config import settings
 from app.database import record_alert
 
-logger = logging.getLogger("beldex_sentinel.notification")
+logger = logging.getLogger("sentrix.notification")
 
 class NotificationService:
     def __init__(self):
@@ -113,7 +113,7 @@ class NotificationService:
 
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"] = f"Beldex Sentinel <{sender}>"
+        msg["From"] = f"Sentrix <{sender}>"
         msg["To"] = recipient
 
         msg.attach(MIMEText(text_body, "plain"))
@@ -181,7 +181,7 @@ class NotificationService:
             "description": description,
             "color": 0x10B981,  # Emerald green
             "fields": fields,
-            "footer": {"text": "Beldex Nexus Rate Sentinel • 30m Rate Monitor"},
+            "footer": {"text": "Sentrix • Security • Precision • Intelligence • 10m/30m Rate Monitor"},
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         }
         try:
@@ -218,7 +218,7 @@ class NotificationService:
 
         # 1. SMS Message (Short, actionable, INR-focused + Nexus formula)
         sms_text = (
-            f"🚨 BELDEX HIGH DEMAND ALERT!\n"
+            f"🚨 SENTRIX: BELDEX HIGH DEMAND ALERT!\n"
             f"30m Surge: +{diff_pct:.2f}% ({sign}Rs {diff_inr_abs:.2f})\n"
             f"Market Rate: Rs {cur_inr:.2f} (${cur_usd:.4f})\n"
             f"💎 Nexus Sell Price: Rs {nexus_sell_inr:.2f} (+45p)\n"
@@ -228,7 +228,8 @@ class NotificationService:
 
         # 2. Telegram Message (Markdown formatted, INR first + Nexus breakdown)
         tg_text = (
-            f"🚨 *BELDEX (BDX) HIGH DEMAND ALERT!*\n\n"
+            f"🚨 *SENTRIX: BELDEX HIGH DEMAND ALERT!*\n"
+            f"_Security • Precision • Intelligence_\n\n"
             f"📈 *30-Min Surge*: `+{diff_pct:.2f}%` (`{sign}₹{diff_inr_abs:.2f}`)\n"
             f"💵 *Actual Market Rate*: `₹{cur_inr:.2f}` (`${cur_usd:.4f}` USD)\n"
             f"💎 *Nexus Selling Price*: `₹{nexus_sell_inr:.2f}` _(Actual + 45 paise)_\n"
@@ -241,14 +242,14 @@ class NotificationService:
         )
 
         # 3. Email Subject & HTML Body (INR-focused + Nexus Selling Price)
-        email_subj = f"🚨 BELDEX ALERT: +{diff_pct:.2f}% Surge | Nexus Selling: ₹{nexus_sell_inr:.2f} (+45p)"
+        email_subj = f"🚨 SENTRIX ALERT: +{diff_pct:.2f}% Surge | Nexus Selling: ₹{nexus_sell_inr:.2f} (+45p)"
         email_html = f"""
         <html>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #f8fafc; padding: 24px; margin: 0;">
           <div style="max-width: 600px; margin: 0 auto; background: #1e293b; border-radius: 12px; border: 1px solid #334155; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
-            <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px; text-align: center;">
-              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 800;">🚀 BELDEX HIGH DEMAND DETECTED</h1>
-              <p style="margin: 4px 0 0 0; color: #ecfdf5; font-size: 14px;">30-Minute Price Spike Opportunity Alert</p>
+            <div style="background: linear-gradient(135deg, #4f46e5 0%, #2563eb 100%); padding: 20px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 800;">🛡️ SENTRIX: HIGH DEMAND DETECTED</h1>
+              <p style="margin: 4px 0 0 0; color: #e0e7ff; font-size: 13px; font-weight: 600; letter-spacing: 0.5px;">SECURITY • PRECISION • INTELLIGENCE</p>
             </div>
             <div style="padding: 24px;">
               <div style="display: flex; justify-content: space-between; background: #0f172a; padding: 16px; border-radius: 8px; margin-bottom: 20px;">
@@ -303,7 +304,7 @@ class NotificationService:
               </div>
             </div>
             <div style="background: #0f172a; padding: 12px; text-align: center; font-size: 12px; color: #64748b;">
-              Beldex Nexus Rate Sentinel • Autonomous Rate Monitoring Engine
+              Sentrix • Security, Precision and Intelligence • Autonomous Beldex Rate Engine
             </div>
           </div>
         </body>
@@ -336,7 +337,7 @@ class NotificationService:
             tasks.append(("email", self.send_email(email_subj, sms_text, email_html)))
         if settings.discord_enabled:
             channels_attempted.append("discord")
-            tasks.append(("discord", self.send_discord("🚨 BELDEX HIGH DEMAND SURGE DETECTED", sms_text, discord_fields)))
+            tasks.append(("discord", self.send_discord("🚨 SENTRIX HIGH DEMAND SURGE DETECTED", sms_text, discord_fields)))
 
         for ch_name, coro in tasks:
             try:
@@ -387,24 +388,25 @@ class NotificationService:
 
         if channel == "telegram":
             text = (
-                "🧪 *BELDEX SENTINEL TEST ALERT (Telegram)*\n\n"
+                "🧪 *SENTRIX TEST ALERT (Telegram)*\n\n"
+                "🛡️ *Security • Precision • Intelligence*\n\n"
                 "✅ Telegram notifications are working correctly!\n"
-                "You will receive instant alerts here whenever a 30-minute Beldex price surge is detected on nexus.vin / markets."
+                "You will receive instant alerts here whenever a 10m/30m Beldex price surge is detected on nexus.vin / markets."
             )
             success = await self.send_telegram(text)
             detail = "Telegram test message dispatched"
         elif channel == "email":
-            subj = "🧪 BELDEX SENTINEL: Test Email Alert"
-            text = "This is a test alert from Beldex Nexus Rate Sentinel. Your email notifications are configured and functioning properly!"
-            success = await self.send_email(subj, text, f"<div style='padding:20px;background:#1e293b;color:#f8fafc;border-radius:8px;'><h2>✅ Test Alert Successful</h2><p>{text}</p></div>")
+            subj = "🧪 SENTRIX: Test Email Alert"
+            text = "This is a test alert from Sentrix (Security, Precision and Intelligence). Your email notifications are configured and functioning properly!"
+            success = await self.send_email(subj, text, f"<div style='padding:20px;background:#1e293b;color:#f8fafc;border-radius:8px;'><h2>✅ Sentrix Test Alert Successful</h2><p>{text}</p></div>")
             detail = "Email test dispatched"
         elif channel == "sms":
-            text = "Beldex Sentinel: Test SMS alert received. High demand notifications will arrive on this number."
+            text = "Sentrix: Test SMS alert received. High demand notifications will arrive on this number. Security • Precision • Intelligence."
             success = await self.send_sms(text)
             detail = "SMS test dispatched"
         elif channel == "discord":
             fields = [{"name": "Test Status", "value": "Passed", "inline": True}]
-            success = await self.send_discord("🧪 Test Alert", "Discord webhook configured and verified!", fields)
+            success = await self.send_discord("🧪 SENTRIX Test Alert", "Discord webhook configured and verified! Security • Precision • Intelligence", fields)
             detail = "Discord test dispatched"
         else:
             return {"status": "error", "message": f"Unknown channel '{channel}'"}

@@ -113,7 +113,7 @@ async def update_nexus_config(payload: NexusConfigPayload, admin: str = Depends(
 async def sync_from_companion(payload: NexusSyncPayload):
     """
     Relay endpoint for the Nexus Browser Companion Bookmarklet / Extension.
-    Directly updates the Sentinel with live authenticated rate from nexus.vin.
+    Directly updates Sentrix with live authenticated rate from nexus.vin.
     """
     if not payload.rate_usd and not payload.rate_inr:
         raise HTTPException(status_code=400, detail="Must provide at least rate_usd or rate_inr")
@@ -201,9 +201,9 @@ async def get_bookmarklet_code():
                     note: 'Nexus Browser Tab (' + window.location.host + ')'
                 }})
             }}).then(r=>r.json()).then(data=>{{
-                alert('✅ Beldex Rate successfully synced to Sentinel Dashboard!\\nRate: ' + (rate_usd ? '$'+rate_usd : '₹'+rate_inr));
+                alert('✅ Beldex Rate successfully synced to Sentrix Dashboard!\\nRate: ' + (rate_inr ? '₹'+rate_inr : '$'+rate_usd));
             }}).catch(err=>{{
-                alert('❌ Could not connect to Beldex Sentinel (http://localhost:{port}).\\nMake sure the app is running!');
+                alert('❌ Could not connect to Sentrix (http://localhost:{port}).\\nMake sure the app is running!');
             }});
         }} catch(e) {{
             alert('Error running bookmarklet: ' + e.message);

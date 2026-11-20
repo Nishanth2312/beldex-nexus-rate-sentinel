@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Beldex Nexus Rate Sentinel - Cross-Platform CLI
-Monitor 30-minute Beldex (BDX) rate differences, track nexus.vin, and dispatch selling alerts.
+Sentrix - Security, Precision and Intelligence | Beldex Rate & Nexus Selling CLI
+Monitor 10m & 30m Beldex (BDX) rate differences, track nexus.vin, and dispatch selling alerts.
 """
 import argparse
 import asyncio
@@ -29,7 +29,7 @@ COLOR_RESET = "\033[0m"
 
 async def cmd_status():
     await init_db()
-    print(f"\n{COLOR_BOLD}{COLOR_BLUE}=== BELDEX NEXUS RATE SENTINEL STATUS ==={COLOR_RESET}")
+    print(f"\n{COLOR_BOLD}{COLOR_BLUE}=== SENTRIX: BELDEX RATE SYSTEM (SECURITY • PRECISION • INTELLIGENCE) ==={COLOR_RESET}")
     print("Fetching live market prices from KuCoin (Tier-1 Primary), Gate.io, MEXC...")
     snapshot = await market_feed.get_market_snapshot()
     if not snapshot:
@@ -148,7 +148,7 @@ async def cmd_nexus(holdings: float, premium: float):
 
 async def cmd_monitor(interval_sec: int):
     await init_db()
-    print(f"{COLOR_BOLD}{COLOR_GREEN}Starting Beldex Sentinel continuous monitor (Interval: {interval_sec}s)...{COLOR_RESET}")
+    print(f"{COLOR_BOLD}{COLOR_GREEN}Starting Sentrix continuous monitor (Interval: {interval_sec}s)...{COLOR_RESET}")
     print("Press Ctrl+C to stop.\n")
     while True:
         try:
@@ -212,7 +212,7 @@ async def cmd_simulate(surge_pct: float, trigger: bool):
         print("Dispatched:", res)
 
 def main():
-    parser = argparse.ArgumentParser(description="Beldex Nexus Rate Sentinel CLI")
+    parser = argparse.ArgumentParser(description="Sentrix - Security, Precision and Intelligence | Beldex Rate & Selling CLI")
     subparsers = parser.add_subparsers(dest="command")
 
     # status

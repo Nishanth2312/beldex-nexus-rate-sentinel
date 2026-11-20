@@ -20,13 +20,13 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
-logger = logging.getLogger("beldex_sentinel")
+logger = logging.getLogger("sentrix")
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Initializing Beldex Nexus Rate Sentinel database...")
+    logger.info("Initializing Sentrix database...")
     await init_db()
     logger.info("Starting 24/7 background rate monitoring scheduler...")
     scheduler.start()
@@ -35,8 +35,8 @@ async def lifespan(app: FastAPI):
     scheduler.stop()
 
 app = FastAPI(
-    title="Beldex Nexus Rate Sentinel",
-    description="Cross-platform 30-minute Beldex (BDX) rate difference identifier, nexus.vin integrator & multi-channel selling alert system.",
+    title="Sentrix",
+    description="Sentrix (Security, Precision and Intelligence) - Beldex (BDX) 10m/30m rate difference engine, nexus.vin selling system & multi-channel alerts.",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -73,4 +73,4 @@ async def serve_index():
     index_path = STATIC_DIR / "index.html"
     if index_path.exists():
         return FileResponse(index_path)
-    return {"message": "Beldex Sentinel API is running. UI not installed yet."}
+    return {"message": "Sentrix API is running. UI not installed yet."}

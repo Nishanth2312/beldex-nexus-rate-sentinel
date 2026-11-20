@@ -1,8 +1,8 @@
 /**
- * Beldex Nexus Companion Bookmarklet
+ * Sentrix Nexus Companion Bookmarklet
  * Drag this script or save as a bookmark in your browser:
  * When you are on https://nexus.vin (logged into your account), clicking this bookmarklet
- * reads the live BDX price/balance and sends it to your local Beldex Sentinel dashboard!
+ * reads the live BDX price/balance and sends it to your local Sentrix dashboard!
  */
 (function() {
     try {
@@ -23,11 +23,11 @@
 
         if (!rate_usd && !rate_inr) {
             const promptVal = prompt(
-                "Beldex Sentinel Companion:\nCouldn't auto-detect the rate on this page.\nEnter the current BDX rate shown on Nexus:",
-                "0.0715"
+                "Sentrix Companion:\nCouldn't auto-detect the rate on this page.\nEnter the current BDX rate shown on Nexus:",
+                "7.00"
             );
             if (promptVal) {
-                rate_usd = parseFloat(promptVal);
+                rate_inr = parseFloat(promptVal);
             } else {
                 return;
             }
@@ -46,10 +46,10 @@
         })
         .then(res => res.json())
         .then(data => {
-            alert('✅ Beldex Sentinel Synced!\nNexus Rate: ' + (rate_usd ? '$' + rate_usd : '₹' + rate_inr) + '\nDashboard updated in real-time.');
+            alert('✅ Sentrix Synced!\nNexus Rate: ' + (rate_inr ? '₹' + rate_inr : '$' + rate_usd) + '\nDashboard updated in real-time.');
         })
         .catch(err => {
-            alert('❌ Sentinel unreachable on http://localhost:8080.\nPlease verify Beldex Sentinel is running locally.');
+            alert('❌ Sentrix unreachable on http://localhost:8080.\nPlease verify Sentrix is running locally.');
         });
     } catch(e) {
         alert('Nexus Companion Error: ' + e.message);
