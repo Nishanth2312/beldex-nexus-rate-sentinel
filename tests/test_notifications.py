@@ -4,8 +4,12 @@ from app.database import init_db
 from app.services.notification import notification_service
 
 @pytest.mark.asyncio
-async def test_alert_dispatcher_format():
+async def test_alert_dispatcher_format(monkeypatch):
     await init_db()
+    monkeypatch.setattr(settings, "email_enabled", False)
+    monkeypatch.setattr(settings, "telegram_enabled", False)
+    monkeypatch.setattr(settings, "sms_enabled", False)
+    monkeypatch.setattr(settings, "discord_enabled", False)
     test_analysis = {
         "current_price_usd": 0.0750,
         "current_price_inr": 7.04,

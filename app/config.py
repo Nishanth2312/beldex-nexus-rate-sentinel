@@ -20,8 +20,8 @@ class Settings(BaseSettings):
     diff_window_minutes: int = 10             # Primary diff window: 10m
     surge_threshold_percent_30m: float = 3.0  # Alert when increase >= 3%
     target_sell_price_usd: float = 0.0        # 0 = disabled
-    target_sell_price_inr: float = 0.0        # 0 = disabled
-    cooldown_minutes: int = 10                # Cooldown: 10 minutes between alerts
+    target_sell_price_inr: float = 7.50       # Peak target: ₹7.50 INR
+    cooldown_minutes: int = 30                # Cooldown: 30 minutes once between alerts
     user_holdings_bdx: float = 10000.0        # Used to calculate sell value
     
     # Primary Market Sources (KuCoin Priority 1)

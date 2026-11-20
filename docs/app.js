@@ -37,7 +37,7 @@ const isStaticHosted = window.location.hostname.includes('github.io') ||
 
 let clientSettings = {
   surge_threshold_percent_30m: 3.0,
-  cooldown_minutes: 10,
+  cooldown_minutes: 30,
   target_sell_price_usd: 0.0,
   target_sell_price_inr: 7.50,
   user_holdings_bdx: 10000.0,
@@ -1000,6 +1000,13 @@ window.testChannel = async function(channel) {
     }
     return;
   } else if (channel === 'email') {
+    if (window._emailTesting) {
+      showToast("⏳ Test email is already dispatching, please wait...", "info");
+      return;
+    }
+    window._emailTesting = true;
+    setTimeout(() => { window._emailTesting = false; }, 8000);
+
     // Intelligent Email Dispatcher (works via Local Engine, Remote API, or Direct Relay)
     const targetEmail = clientSettings.email_to || 'nishanthvs23@gmail.com';
     const endpoints = [];
