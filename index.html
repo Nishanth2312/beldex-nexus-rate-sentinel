@@ -506,11 +506,14 @@
                 <i class="fa-solid fa-envelope"></i>
               </div>
               <div>
-                <div class="text-xs font-bold text-white">Email (SMTP)</div>
-                <div id="emailStatusText" class="text-[11px] text-slate-400">Gmail / Outlook</div>
+                <div class="text-xs font-bold text-white flex items-center gap-1.5">
+                  <span>Email (Google SMTP)</span>
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                </div>
+                <div id="emailStatusText" class="text-[11px] text-emerald-300 font-mono">nishanthvs23@gmail.com</div>
               </div>
             </div>
-            <button onclick="testChannel('email')" class="btn btn-secondary text-[11px] px-2.5 py-1">
+            <button onclick="testChannel('email')" class="btn btn-secondary text-[11px] px-2.5 py-1 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/20">
               Test Email
             </button>
           </div>
@@ -927,29 +930,41 @@
         <!-- EMAIL (SMTP) CONFIG -->
         <div class="border-t border-[#233154] pt-4">
           <div class="flex items-center justify-between mb-2">
-            <h4 class="text-xs font-bold text-emerald-400 uppercase tracking-wider">3. Email (SMTP / Gmail) Notifications</h4>
+            <div class="flex items-center gap-2">
+              <h4 class="text-xs font-bold text-emerald-400 uppercase tracking-wider">3. Email (Google SMTP) Notifications</h4>
+              <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-300 font-mono border border-emerald-500/30">Google SMTP Active</span>
+            </div>
             <label class="flex items-center gap-2 cursor-pointer text-xs">
-              <input id="cfgEmailEnabled" type="checkbox" class="w-4 h-4 rounded text-emerald-600">
+              <input id="cfgEmailEnabled" type="checkbox" checked class="w-4 h-4 rounded text-emerald-600">
               <span>Enable Email</span>
             </label>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label class="block text-xs text-slate-300 mb-1">Recipient Email (Send Alert To):</label>
-              <input id="cfgEmailTo" type="email" class="input-field" placeholder="your_email@gmail.com">
+              <input id="cfgEmailTo" type="email" class="input-field" value="nishanthvs23@gmail.com" placeholder="nishanthvs23@gmail.com">
             </div>
             <div>
               <label class="block text-xs text-slate-300 mb-1">SMTP Host:</label>
-              <input id="cfgSmtpHost" type="text" class="input-field" placeholder="smtp.gmail.com">
+              <input id="cfgSmtpHost" type="text" class="input-field" value="smtp.gmail.com" placeholder="smtp.gmail.com">
             </div>
             <div>
               <label class="block text-xs text-slate-300 mb-1">SMTP User / From:</label>
-              <input id="cfgSmtpUser" type="text" class="input-field" placeholder="alert_sender@gmail.com">
+              <input id="cfgSmtpUser" type="text" class="input-field" value="nishanthvs23@gmail.com" placeholder="nishanthvs23@gmail.com">
             </div>
             <div>
               <label class="block text-xs text-slate-300 mb-1">SMTP Password / App Password:</label>
-              <input id="cfgSmtpPass" type="password" class="input-field" placeholder="••••••••••••">
+              <input id="cfgSmtpPass" type="password" class="input-field" placeholder="Google App Password (e.g. 16 characters)">
             </div>
+          </div>
+          <div class="mt-2.5 flex items-center justify-between bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
+            <div class="text-[11px] text-slate-400">
+              <i class="fa-solid fa-circle-check text-emerald-400 mr-1"></i>
+              Google SMTP Active: Dispatches to <strong class="text-slate-200">nishanthvs23@gmail.com</strong>
+            </div>
+            <button type="button" onclick="testChannel('email')" class="btn btn-secondary text-xs px-3 py-1 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/40">
+              <i class="fa-solid fa-paper-plane mr-1"></i> Test Email Now
+            </button>
           </div>
         </div>
 
