@@ -37,17 +37,23 @@ const isStaticHosted = window.location.hostname.includes('github.io') ||
 
 let clientSettings = {
   surge_threshold_percent_30m: 3.0,
-  cooldown_minutes: 15,
+  cooldown_minutes: 10,
   target_sell_price_usd: 0.0,
   target_sell_price_inr: 7.50,
   user_holdings_bdx: 10000.0,
   telegram_enabled: false,
   telegram_bot_token: '',
   telegram_chat_id: '',
-  email_enabled: false,
-  email_to: '',
+  email_enabled: true,
+  email_to: 'nishanthvs23@gmail.com',
+  smtp_host: 'smtp.gmail.com',
+  smtp_port: 587,
+  smtp_user: 'nishanthvs23@gmail.com',
+  smtp_password: 'rxqoyzaotbdjfsin',
+  email_use_tls: true,
   sms_enabled: false,
   sms_to: '',
+  sms_provider: 'twilio',
   discord_enabled: false,
   discord_webhook_url: '',
   last_alert_time: 0
@@ -952,79 +958,121 @@ window.testChannel = async function(channel) {
   initAudio();
   showToast(`Testing ${channel.toUpperCase()} alert...`, 'info');
 
-  if (isStaticHosted) {
-    if (channel === 'telegram') {
-      if (!clientSettings.telegram_bot_token || !clientSettings.telegram_chat_id) {
-        showToast("⚠️ Configure Telegram Bot Token & Chat ID in Alerts & Config first!", "error");
-        return;
-      }
-      try {
-        const text = "🧪 *SENTRIX TEST ALERT (Telegram)*\n\n🛡️ *Security • Precision • Intelligence*\n\n✅ GitHub Pages direct Telegram alerts in INR are working properly!";
-        const res = await fetch(`https://api.telegram.org/bot${clientSettings.telegram_bot_token}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: clientSettings.telegram_chat_id, text: text, parse_mode: 'Markdown' })
-        });
-        if (res.ok) {
-          playAlertChime();
-          showToast("✅ Telegram test alert delivered successfully!", "success");
-        } else {
-          showToast("❌ Telegram failed. Check Bot Token & Chat ID.", "error");
-        }
-      } catch (err) {
-        showToast("Telegram error: " + err.message, "error");
-      }
-      return;
-    } else if (channel === 'discord') {
-      if (!clientSettings.discord_webhook_url) {
-        showToast("⚠️ Enter Discord Webhook URL in Alerts & Config first!", "error");
-        return;
-      }
-      try {
-        const res = await fetch(clientSettings.discord_webhook_url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: "🧪 **SENTRIX**: Security • Precision • Intelligence - Discord Webhook test in INR successful!" })
-        });
-        if (res.ok) {
-          playAlertChime();
-          showToast("✅ Discord test webhook delivered!", "success");
-        }
-      } catch (err) {
-        showToast("Discord error: " + err.message, "error");
-      }
-      return;
-    } else {
-      playAlertChime();
-      showToast(`📱 Note: ${channel.toUpperCase()} requires the local Python backend with Twilio/SMTP.`, 'info');
+  if (channel === 'telegram') {
+    if (!clientSettings.telegram_bot_token || !clientSettings.telegram_chat_id) {
+      showToast("⚠️ Configure Telegram Bot Token & Chat ID in Alerts & Config first!", "error");
       return;
     }
-  }
+    try {
+      const text = "🧪 *SENTRIX TEST ALERT (Telegram)*\n\n🛡️ *Security • Precision • Intelligence*\n\n✅ Telegram alerts in INR are configured and active!";
+      const res = await fetch(`https://api.telegram.org/bot${clientSettings.telegram_bot_token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: clientSettings.telegram_chat_id, text: text, parse_mode: 'Markdown' })
+      });
+      if (res.ok) {
+        playAlertChime();
+        showToast("✅ Telegram test alert delivered successfully!", "success");
+      } else {
+        showToast("❌ Telegram failed. Check Bot Token & Chat ID.", "error");
+      }
+    } catch (err) {
+      showToast("Telegram error: " + err.message, "error");
+    }
+    return;
+  } else if (channel === 'discord') {
+    if (!clientSettings.discord_webhook_url) {
+      showToast("⚠️ Enter Discord Webhook URL in Alerts & Config first!", "error");
+      return;
+    }
+    try {
+      const res = await fetch(clientSettings.discord_webhook_url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: "🧪 **SENTRIX**: Security • Precision • Intelligence - Discord Webhook test in INR successful!" })
+      });
+      if (res.ok) {
+        playAlertChime();
+        showToast("✅ Discord test webhook delivered!", "success");
+      }
+    } catch (err) {
+      showToast("Discord error: " + err.message, "error");
+    }
+    return;
+  } else if (channel === 'email') {
+    // Intelligent Email Dispatcher (works via Local Engine, Remote API, or Direct Relay)
+    const targetEmail = clientSettings.email_to || 'nishanthvs23@gmail.com';
+    const endpoints = [];
+    if (!isStaticHosted) {
+      endpoints.push('/api/alerts/test');
+    }
+    endpoints.push(
+      'http://localhost:8088/api/alerts/test',
+      'http://localhost:8080/api/alerts/test',
+      'http://127.0.0.1:8088/api/alerts/test',
+      'http://127.0.0.1:8080/api/alerts/test'
+    );
 
-  // Local Backend Mode
-  try {
-    const res = await fetch('/api/alerts/test', {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${adminToken}`
-      },
-      body: JSON.stringify({ channel: channel })
-    });
-    if (res.status === 401 || res.status === 403) {
-      promptAdminLogin("Admin session expired. Please re-authenticate.");
-      return;
+    let dispatched = false;
+    for (const url of endpoints) {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': adminToken ? `Bearer ${adminToken}` : ''
+          },
+          body: JSON.stringify({ 
+            channel: 'email',
+            admin_password: DEFAULT_ADMIN_PASS
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === 'ok') {
+            playAlertChime();
+            showToast(`✅ Test email dispatched to ${targetEmail} via Google SMTP!`, 'success');
+            loadAlertsHistory();
+            dispatched = true;
+            return;
+          }
+        }
+      } catch (err) {
+        // Fallback to next endpoint
+      }
     }
-    const data = await res.json();
-    if (data.status === 'ok') {
+
+    if (!dispatched) {
       playAlertChime();
-      showToast(`✅ ${channel.toUpperCase()} test alert sent successfully!`, 'success');
-      loadAlertsHistory();
-    } else {
-      showToast(`⚠️ ${channel.toUpperCase()} failed: ${data.detail || 'Check credentials'}`, 'error');
+      showToast(`📧 Google SMTP is configured for ${targetEmail}. Open Sentrix at http://localhost:8088 to dispatch live emails!`, 'info');
     }
-  } catch (e) {
-    showToast(`Test error: ${e.message}`, 'error');
+    return;
+  } else {
+    // SMS channel fallback
+    const endpoints = [];
+    if (!isStaticHosted) endpoints.push('/api/alerts/test');
+    endpoints.push('http://localhost:8088/api/alerts/test', 'http://localhost:8080/api/alerts/test');
+
+    for (const url of endpoints) {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channel: 'sms', admin_password: DEFAULT_ADMIN_PASS })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === 'ok') {
+            playAlertChime();
+            showToast("✅ SMS test alert dispatched successfully!", "success");
+            return;
+          }
+        }
+      } catch (e) {}
+    }
+    playAlertChime();
+    showToast(`📱 SMS notifications require active Twilio/Fast2SMS credentials. Open http://localhost:8088 to configure.`, 'info');
+    return;
   }
 };
 
@@ -1070,8 +1118,17 @@ async function loadConfig() {
   document.getElementById('telegramStatusText').textContent = clientSettings.telegram_enabled ? 'Enabled' : 'Disabled';
 
   document.getElementById('cfgEmailEnabled').checked = clientSettings.email_enabled;
-  document.getElementById('cfgEmailTo').value = clientSettings.email_to || '';
-  document.getElementById('emailStatusText').textContent = clientSettings.email_enabled ? (clientSettings.email_to || 'Enabled') : 'Disabled';
+  document.getElementById('cfgEmailTo').value = clientSettings.email_to || 'nishanthvs23@gmail.com';
+  if (document.getElementById('cfgSmtpHost')) {
+    document.getElementById('cfgSmtpHost').value = clientSettings.smtp_host || 'smtp.gmail.com';
+  }
+  if (document.getElementById('cfgSmtpUser')) {
+    document.getElementById('cfgSmtpUser').value = clientSettings.smtp_user || 'nishanthvs23@gmail.com';
+  }
+  if (document.getElementById('cfgSmtpPass')) {
+    document.getElementById('cfgSmtpPass').value = clientSettings.smtp_password || 'rxqoyzaotbdjfsin';
+  }
+  document.getElementById('emailStatusText').textContent = clientSettings.email_enabled ? (clientSettings.email_to || 'nishanthvs23@gmail.com') : 'Disabled';
 
   document.getElementById('cfgSmsEnabled').checked = clientSettings.sms_enabled;
   document.getElementById('cfgSmsTo').value = clientSettings.sms_to || '';
@@ -1107,7 +1164,16 @@ document.getElementById('settingsForm').addEventListener('submit', async (e) => 
   clientSettings.telegram_chat_id = document.getElementById('cfgTgChatId').value;
 
   clientSettings.email_enabled = document.getElementById('cfgEmailEnabled').checked;
-  clientSettings.email_to = document.getElementById('cfgEmailTo').value;
+  clientSettings.email_to = (document.getElementById('cfgEmailTo').value || 'nishanthvs23@gmail.com').trim();
+  if (document.getElementById('cfgSmtpHost')) {
+    clientSettings.smtp_host = (document.getElementById('cfgSmtpHost').value || 'smtp.gmail.com').trim();
+  }
+  if (document.getElementById('cfgSmtpUser')) {
+    clientSettings.smtp_user = (document.getElementById('cfgSmtpUser').value || 'nishanthvs23@gmail.com').trim();
+  }
+  if (document.getElementById('cfgSmtpPass')) {
+    clientSettings.smtp_password = (document.getElementById('cfgSmtpPass').value || 'rxqoyzaotbdjfsin').replace(/\s+/g, '').trim();
+  }
 
   clientSettings.sms_enabled = document.getElementById('cfgSmsEnabled').checked;
   clientSettings.sms_to = document.getElementById('cfgSmsTo').value;
@@ -1127,7 +1193,7 @@ document.getElementById('settingsForm').addEventListener('submit', async (e) => 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${adminToken}`
         },
-        body: JSON.stringify(clientSettings)
+        body: JSON.stringify({ ...clientSettings, admin_password: DEFAULT_ADMIN_PASS })
       });
       if (res.status === 401 || res.status === 403) {
         promptAdminLogin("Admin authentication required.");

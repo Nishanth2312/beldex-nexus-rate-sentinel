@@ -12,7 +12,7 @@ DB_PATH = DATA_DIR / "sentinel.db"
 class Settings(BaseSettings):
     # Server configuration
     host: str = "0.0.0.0"
-    port: int = 8080
+    port: int = 8088
     debug: bool = False
     
     # Monitoring Engine
@@ -44,14 +44,14 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
 
-    # Email (SMTP) Alerting
-    email_enabled: bool = False
+    # Email (Google SMTP) Alerting - Pre-configured
+    email_enabled: bool = True
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587
-    smtp_user: str = ""
+    smtp_user: str = "nishanthvs23@gmail.com"
     smtp_password: str = ""
-    email_from: str = ""
-    email_to: str = ""
+    email_from: str = "nishanthvs23@gmail.com"
+    email_to: str = "nishanthvs23@gmail.com"
     email_use_tls: bool = True
 
     # SMS Alerting

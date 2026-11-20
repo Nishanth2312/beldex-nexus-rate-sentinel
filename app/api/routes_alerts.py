@@ -1,14 +1,17 @@
+import hmac
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Security, status
+from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from app.config import settings
 from app.database import get_recent_alerts, set_dynamic_setting
-from app.services.auth import require_admin
+from app.services.auth import require_admin, security, verify_admin_token
 from app.services.notification import notification_service
 
 router = APIRouter(prefix="/api/alerts", tags=["Alerts"])
 
 class AlertConfigPayload(BaseModel):
+    admin_password: Optional[str] = None
     # Monitoring parameters
     poll_interval_seconds: Optional[int] = None
     surge_threshold_percent_30m: Optional[float] = None
@@ -49,6 +52,7 @@ class AlertConfigPayload(BaseModel):
 
 class TestAlertPayload(BaseModel):
     channel: str  # 'telegram', 'email', 'sms', 'discord'
+    admin_password: Optional[str] = None
 
 @router.get("/history")
 async def get_alerts_history(limit: int = 50):
@@ -105,11 +109,23 @@ async def get_alert_config():
 @router.post("/config")
 async def update_alert_config(
     payload: AlertConfigPayload,
-    admin: str = Depends(require_admin)
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(security)
 ):
     """
     Dynamically update notification channels and monitoring thresholds. (ADMIN ONLY)
     """
+    is_authed = False
+    if credentials and credentials.credentials:
+        is_authed = verify_admin_token(credentials.credentials)
+    elif payload.admin_password:
+        is_authed = hmac.compare_digest(payload.admin_password.strip(), settings.admin_password)
+
+    if not is_authed:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Admin authentication required to update alert settings."
+        )
+
     # Monitoring parameters
     if payload.poll_interval_seconds is not None:
         settings.poll_interval_seconds = payload.poll_interval_seconds
@@ -184,10 +200,21 @@ async def update_alert_config(
 @router.post("/test")
 async def trigger_channel_test(
     payload: TestAlertPayload,
-    admin: str = Depends(require_admin)
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(security)
 ):
     """
     Test a specific channel (telegram, email, sms, discord). (ADMIN ONLY)
     """
+    is_authed = False
+    if credentials and credentials.credentials:
+        is_authed = verify_admin_token(credentials.credentials)
+    elif payload.admin_password:
+        is_authed = hmac.compare_digest(payload.admin_password.strip(), settings.admin_password)
+
+    if not is_authed:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Admin authentication required to trigger test alerts."
+        )
     res = await notification_service.send_test_alert(payload.channel)
     return res

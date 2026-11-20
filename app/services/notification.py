@@ -103,7 +103,7 @@ class NotificationService:
         host = settings.smtp_host
         port = settings.smtp_port
         user = settings.smtp_user
-        password = settings.smtp_password
+        password = (settings.smtp_password or "").replace(" ", "").strip()
         sender = settings.email_from or user
         recipient = settings.email_to
 
