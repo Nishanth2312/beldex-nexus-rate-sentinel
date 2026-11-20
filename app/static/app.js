@@ -49,7 +49,7 @@ let clientSettings = {
   smtp_host: 'smtp.gmail.com',
   smtp_port: 587,
   smtp_user: 'nishanthvs23@gmail.com',
-  smtp_password: 'rxqoyzaotbdjfsin',
+  smtp_password: '',
   email_use_tls: true,
   sms_enabled: false,
   sms_to: '',
@@ -1126,7 +1126,7 @@ async function loadConfig() {
     document.getElementById('cfgSmtpUser').value = clientSettings.smtp_user || 'nishanthvs23@gmail.com';
   }
   if (document.getElementById('cfgSmtpPass')) {
-    document.getElementById('cfgSmtpPass').value = clientSettings.smtp_password || 'rxqoyzaotbdjfsin';
+    document.getElementById('cfgSmtpPass').value = clientSettings.smtp_password || '';
   }
   document.getElementById('emailStatusText').textContent = clientSettings.email_enabled ? (clientSettings.email_to || 'nishanthvs23@gmail.com') : 'Disabled';
 
