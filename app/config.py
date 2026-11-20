@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     nexus_url: str = "https://nexus.vin"
     nexus_selling_premium_inr: float = 0.45   # Selling price = actual beldex price + 0.45 paise (+₹0.45 INR)
     nexus_cookie: str = ""                    # User session cookies or cf_clearance
-    nexus_user_agent: str = "Mozilla/5.0 (X11; Linux x86_64) BeldexSentinel/1.0"
+    nexus_user_agent: str = "Mozilla/5.0 (X11; Linux x86_64) Sentrix/1.0"
     nexus_auth_token: str = ""
     nexus_manual_rate_usd: Optional[float] = None
     nexus_manual_rate_inr: Optional[float] = None

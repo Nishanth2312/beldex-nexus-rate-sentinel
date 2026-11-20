@@ -1,8 +1,9 @@
 @echo off
-TITLE Beldex Nexus Rate Sentinel
+TITLE Sentrix - Security, Precision and Intelligence
 echo ========================================================
-echo     Starting Beldex Nexus Rate Sentinel (Windows)
-echo     Autonomous 30m Rate Difference ^& Selling Alert System
+echo     Starting SENTRIX (Windows)
+echo     Security • Precision • Intelligence
+echo     Autonomous Beldex Rate ^& Nexus Selling System
 echo ========================================================
 
 where python >nul 2>nul

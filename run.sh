@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 set -e
 
-# Beldex Nexus Rate Sentinel Launcher (Linux & macOS)
+# Sentrix Launcher (Linux & macOS)
+# Security • Precision • Intelligence
 cd "$(dirname "$0")"
 
 echo "========================================================"
-echo "    🚀 Starting Beldex Nexus Rate Sentinel"
-echo "    Autonomous 30m Rate Difference & Selling Alert System"
+echo "    🛡️ Starting SENTRIX"
+echo "    Security • Precision • Intelligence"
+echo "    Autonomous Beldex Rate & Nexus Selling System"
 echo "========================================================"
 
 # Check Python 3
