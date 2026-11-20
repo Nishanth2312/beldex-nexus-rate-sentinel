@@ -136,11 +136,32 @@ class NotificationService:
             logger.error(f"SMTP send failed: {e}")
             return False
 
-    async def send_email(self, subject: str, text_body: str, html_body: str = "") -> bool:
+    async def send_email(
+        self,
+        subject: str,
+        text_body: str,
+        html_body: str = "",
+        force: bool = False
+    ) -> bool:
         if not settings.email_enabled:
             return False
+
+        now = time.time()
+        elapsed = now - self._last_email_sent_ts
+
+        # 20-second debounce: prevent duplicate emails from rapid double-clicks or dual triggers
+        import hashlib
+        data_hash = hashlib.md5(f"{subject}_{text_body[:60]}".encode("utf-8")).hexdigest()
+        if elapsed < 20.0 and data_hash == self._last_email_data_hash:
+            logger.info("Duplicate email suppressed by 20-second debounce filter.")
+            return False
+
         # Run blocking SMTP in thread pool to preserve async loop
-        return await asyncio.to_thread(self._send_smtp_sync, subject, text_body, html_body)
+        ok = await asyncio.to_thread(self._send_smtp_sync, subject, text_body, html_body)
+        if ok:
+            self._last_email_sent_ts = now
+            self._last_email_data_hash = data_hash
+        return ok
 
     # -------------------------------------------------------------
     # 3. TELEGRAM BOT NOTIFICATIONS
@@ -443,6 +464,10 @@ class NotificationService:
         channels_succeeded = []
 
         now = time.time()
+        if self._last_email_sent_ts == 0.0:
+            from app.database import get_last_alert_time
+            self._last_email_sent_ts = await get_last_alert_time()
+
         time_since_email = now - self._last_email_sent_ts
         data_hash = f"{round(cur_inr, 2)}:{round(diff_pct, 1)}:{is_above_7_50}"
 
