@@ -148,7 +148,11 @@ The script will configure `venv`, install packages, and open the server on **htt
 ```bash
 docker compose up -d
 ```
-Access the dashboard at **http://localhost:8080**.
+Access the dashboard at **http://localhost:8080** (or `http://localhost:8088` when running locally alongside Docker/Traefik).
+
+### 5. Automatic GitHub Pages Deployment
+- GitHub Pages builds directly from the **`main` branch `/docs` directory**, so every push to `main` automatically deploys updated static assets to **[https://nishanth2312.github.io/beldex-nexus-rate-sentinel/](https://nishanth2312.github.io/beldex-nexus-rate-sentinel/)**.
+- A local `.git/hooks/pre-commit` hook keeps `docs/` automatically synced whenever `app/static/` files are committed.
 
 ---
 
