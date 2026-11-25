@@ -3,7 +3,7 @@ import logging
 import time
 from typing import Any, Callable, Dict, List, Optional
 from app.config import settings
-from app.database import record_price_tick
+from app.database import get_latest_tick, get_price_history, record_price_tick
 from app.services.market_feed import market_feed
 from app.services.nexus_client import nexus_client
 from app.services.rate_analyzer import rate_analyzer
@@ -37,9 +37,34 @@ class SentinelScheduler:
             except Exception as e:
                 logger.debug(f"Broadcast callback error: {e}")
 
+    async def ensure_real_history_seeded(self) -> None:
+        """Seed real 5-minute 24h market ticks from CoinGecko if local DB history has gaps."""
+        now = time.time()
+        recent = await get_price_history(source="composite", since_timestamp=now - 7200, limit=30)
+        if len(recent) >= 6:
+            return
+        hist_ticks = await market_feed.fetch_historical_24h()
+        if not hist_ticks:
+            return
+        latest = await get_latest_tick(source="composite")
+        latest_ts = latest["timestamp"] if latest else 0.0
+        added = 0
+        for pt in hist_ticks:
+            if pt["timestamp"] > latest_ts and pt["timestamp"] < (now - 60):
+                await record_price_tick(
+                    source="composite",
+                    price_usd=pt["price_usd"],
+                    price_inr=pt["price_inr"],
+                    timestamp=pt["timestamp"]
+                )
+                added += 1
+        if added:
+            logger.info(f"Seeded {added} real 5m historical market ticks from CoinGecko.")
+
     async def run_single_cycle(self) -> Optional[Dict[str, Any]]:
         self.last_check_time = time.time()
         self.total_checks += 1
+        await self.ensure_real_history_seeded()
         
         # 1. Fetch live market snapshot
         snapshot = await market_feed.get_market_snapshot()
@@ -76,6 +101,11 @@ class SentinelScheduler:
             )
 
         # 4. Process Nexus.vin
+        nexus_client.calculate_selling_price(
+            actual_inr=snapshot.composite_price_inr,
+            actual_usd=snapshot.composite_price_usd,
+            holdings_bdx=settings.user_holdings_bdx
+        )
         nexus_client.calculate_arbitrage(snapshot.composite_price_usd)
         if nexus_client.state.rate_usd and nexus_client.state.rate_usd > 0:
             await record_price_tick(
@@ -87,6 +117,9 @@ class SentinelScheduler:
 
         # 5. Analyze 30-Minute Rate Difference and Demand
         analysis = await rate_analyzer.analyze_current_rate()
+        if analysis:
+            analysis.usd_inr_rate = snapshot.usd_inr_rate
+            analysis.indian_exchange_inr = snapshot.indian_exchange_inr
         
         # 6. Check if Alert should trigger
         alert_result = None

@@ -3,7 +3,8 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 from pydantic import BaseModel
 from app.config import settings
-from app.database import get_latest_tick, get_price_at_or_before, get_price_history, get_last_alert_time
+from app.database import get_closest_tick_near, get_latest_tick, get_price_at_or_before, get_last_alert_time
+from app.services.market_feed import market_feed
 
 logger = logging.getLogger("beldex_sentinel.analyzer")
 
@@ -56,6 +57,8 @@ class RateAnalysis(BaseModel):
     nexus_premium_inr: float = 0.45
     nexus_holdings_value_inr: Optional[float] = None
     nexus_extra_profit_inr: Optional[float] = None
+    usd_inr_rate: Optional[float] = None
+    indian_exchange_inr: Optional[float] = None
 
 class RateAnalyzerService:
     def __init__(self):
@@ -68,16 +71,15 @@ class RateAnalyzerService:
         now: float,
         minutes: int,
         label: str,
-        source: Optional[str] = None
+        source: Optional[str] = "composite"
     ) -> WindowDiff:
         target_ts = now - (minutes * 60)
-        past = await get_price_at_or_before(target_ts, source=source, max_lookback_seconds=minutes * 120)
-        if not past or past["price_usd"] <= 0:
-            history = await get_price_history(source=source, limit=1)
-            if history and history[0].get("price_usd", 0) > 0:
-                past = history[0]
+        lookback = max(600, minutes * 90)
+        past = await get_price_at_or_before(target_ts, source=source, max_lookback_seconds=lookback)
+        if (not past or past["price_usd"] <= 0) and minutes >= 1440:
+            past = await get_closest_tick_near(target_ts, source=source, tolerance_seconds=1200.0)
 
-        if not past or past["price_usd"] <= 0:
+        if not past or past["price_usd"] <= 0 or past["price_inr"] <= 0:
             return WindowDiff(
                 window_label=label,
                 minutes=minutes,
@@ -108,21 +110,23 @@ class RateAnalyzerService:
         self,
         override_usd: Optional[float] = None,
         override_inr: Optional[float] = None,
-        source: Optional[str] = None,
+        source: Optional[str] = "composite",
         surge_threshold_pct: Optional[float] = None,
         target_sell_usd: Optional[float] = None,
         target_sell_inr: Optional[float] = None,
         holdings_bdx: Optional[float] = None
     ) -> Optional[RateAnalysis]:
         now = time.time()
+        fx_rate = market_feed.default_usd_inr
+        effective_source = source if source is not None else "composite"
         
         # Determine latest price
         if override_usd is not None and override_usd > 0:
             cur_usd = override_usd
-            cur_inr = override_inr if (override_inr and override_inr > 0) else round(override_usd * 93.85, 4)
+            cur_inr = override_inr if (override_inr and override_inr > 0) else round(override_usd * fx_rate, 4)
             active_src = source or "override"
         else:
-            latest = await get_latest_tick(source=source)
+            latest = await get_latest_tick(source=effective_source)
             if not latest:
                 return None
             cur_usd = latest["price_usd"]
@@ -135,13 +139,13 @@ class RateAnalyzerService:
         t_sell_inr = target_sell_inr if target_sell_inr is not None else settings.target_sell_price_inr
         bdx_held = holdings_bdx if holdings_bdx is not None else settings.user_holdings_bdx
 
-        # Calculate Windows
-        diff_5m = await self.calculate_window_diff(cur_usd, cur_inr, now, 5, "5m", source=source)
-        diff_10m = await self.calculate_window_diff(cur_usd, cur_inr, now, 10, "10m", source=source)
-        diff_15m = await self.calculate_window_diff(cur_usd, cur_inr, now, 15, "15m", source=source)
-        diff_30m = await self.calculate_window_diff(cur_usd, cur_inr, now, 30, "30m", source=source)
-        diff_1h = await self.calculate_window_diff(cur_usd, cur_inr, now, 60, "1h", source=source)
-        diff_24h = await self.calculate_window_diff(cur_usd, cur_inr, now, 1440, "24h", source=source)
+        # Calculate Windows against the same consistent market source
+        diff_5m = await self.calculate_window_diff(cur_usd, cur_inr, now, 5, "5m", source=effective_source)
+        diff_10m = await self.calculate_window_diff(cur_usd, cur_inr, now, 10, "10m", source=effective_source)
+        diff_15m = await self.calculate_window_diff(cur_usd, cur_inr, now, 15, "15m", source=effective_source)
+        diff_30m = await self.calculate_window_diff(cur_usd, cur_inr, now, 30, "30m", source=effective_source)
+        diff_1h = await self.calculate_window_diff(cur_usd, cur_inr, now, 60, "1h", source=effective_source)
+        diff_24h = await self.calculate_window_diff(cur_usd, cur_inr, now, 1440, "24h", source=effective_source)
 
         # High Demand & Surge Detection
         is_surge = False
@@ -235,7 +239,9 @@ class RateAnalyzerService:
             nexus_selling_price_inr=nexus_sell_inr,
             nexus_premium_inr=nexus_prem,
             nexus_holdings_value_inr=nexus_hold_val,
-            nexus_extra_profit_inr=nexus_bonus
+            nexus_extra_profit_inr=nexus_bonus,
+            usd_inr_rate=fx_rate,
+            indian_exchange_inr=market_feed.latest_indian_exchange_inr
         )
 
 rate_analyzer = RateAnalyzerService()

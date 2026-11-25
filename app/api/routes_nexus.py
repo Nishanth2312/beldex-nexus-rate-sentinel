@@ -127,10 +127,11 @@ async def sync_from_companion(payload: NexusSyncPayload):
 
     # Persist as a nexus_vin price tick
     if state.rate_usd:
+        from app.services.market_feed import market_feed
         await record_price_tick(
             source="nexus_vin",
             price_usd=state.rate_usd,
-            price_inr=state.rate_inr or (state.rate_usd * 93.85)
+            price_inr=state.rate_inr or (state.rate_usd * market_feed.default_usd_inr)
         )
 
     return {
@@ -155,10 +156,11 @@ async def set_manual_rate(
         rate_inr=payload.rate_inr
     )
     if state.rate_usd:
+        from app.services.market_feed import market_feed
         await record_price_tick(
             source="nexus_vin",
             price_usd=state.rate_usd,
-            price_inr=state.rate_inr or (state.rate_usd * 93.85)
+            price_inr=state.rate_inr or (state.rate_usd * market_feed.default_usd_inr)
         )
     return {"status": "success", "state": state.model_dump()}
 

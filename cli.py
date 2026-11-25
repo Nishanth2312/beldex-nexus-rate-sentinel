@@ -195,12 +195,13 @@ async def cmd_simulate(surge_pct: float, trigger: bool):
     cur_usd = snapshot.composite_price_usd if snapshot else 0.0710
     now = time.time()
     
+    fx = market_feed.default_usd_inr
     # 30m ago tick
-    await record_price_tick(source="sim_base", price_usd=cur_usd, price_inr=cur_usd*93.85, timestamp=now-1800)
+    await record_price_tick(source="sim_base", price_usd=cur_usd, price_inr=cur_usd*fx, timestamp=now-1800)
     
     # New high price
     new_usd = cur_usd * (1.0 + (surge_pct / 100.0))
-    await record_price_tick(source="composite", price_usd=new_usd, price_inr=new_usd*93.85, timestamp=now)
+    await record_price_tick(source="composite", price_usd=new_usd, price_inr=new_usd*fx, timestamp=now)
     
     analysis = await rate_analyzer.analyze_current_rate(override_usd=new_usd)
     print(f"Simulated Price: ${new_usd:.4f} (30m Diff: +{analysis.diff_30m_pct:.2f}%)")

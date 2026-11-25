@@ -163,6 +163,31 @@ async def get_price_at_or_before(
         row = await cursor.fetchone()
         return dict(row) if row else None
 
+async def get_closest_tick_near(
+    target_timestamp: float,
+    source: Optional[str] = None,
+    tolerance_seconds: float = 900.0
+) -> Optional[Dict[str, Any]]:
+    """Find closest price snapshot within +/- tolerance_seconds around target_timestamp."""
+    low = target_timestamp - tolerance_seconds
+    high = target_timestamp + tolerance_seconds
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        db.row_factory = aiosqlite.Row
+        if source:
+            cursor = await db.execute("""
+                SELECT * FROM price_ticks
+                WHERE source = ? AND timestamp >= ? AND timestamp <= ?
+                ORDER BY ABS(timestamp - ?) ASC LIMIT 1
+            """, (source, low, high, target_timestamp))
+        else:
+            cursor = await db.execute("""
+                SELECT * FROM price_ticks
+                WHERE timestamp >= ? AND timestamp <= ?
+                ORDER BY ABS(timestamp - ?) ASC LIMIT 1
+            """, (low, high, target_timestamp))
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
 async def record_alert(
     alert_type: str,
     title: str,

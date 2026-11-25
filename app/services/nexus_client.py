@@ -53,8 +53,10 @@ class NexusClientService:
         self.state.nexus_selling_premium_paise = round(premium_inr * 100.0, 1)
 
         # Selling price = actual beldex price + 0.45 paise
+        from app.services.market_feed import market_feed
+        fx = market_feed.default_usd_inr
         selling_inr = round(actual_inr + premium_inr, 4)
-        selling_usd = round(selling_inr / 93.85, 6)
+        selling_usd = round(selling_inr / fx, 6)
 
         self.state.nexus_selling_price_inr = selling_inr
         self.state.nexus_selling_price_usd = selling_usd
@@ -85,11 +87,13 @@ class NexusClientService:
         source_note: str = "Browser Companion Bookmarklet"
     ) -> NexusState:
         now = time.time()
-        # If one currency is provided, calculate the other using standard or known conversion
+        from app.services.market_feed import market_feed
+        fx = market_feed.default_usd_inr
+        # If one currency is provided, calculate the other using live conversion
         if rate_usd and not rate_inr:
-            rate_inr = round(rate_usd * 93.85, 4)
+            rate_inr = round(rate_usd * fx, 4)
         elif rate_inr and not rate_usd:
-            rate_usd = round(rate_inr / 93.85, 6)
+            rate_usd = round(rate_inr / fx, 6)
 
         self.state.rate_usd = rate_usd
         self.state.rate_inr = rate_inr
@@ -103,10 +107,12 @@ class NexusClientService:
 
     def set_manual_rate(self, rate_usd: Optional[float] = None, rate_inr: Optional[float] = None) -> NexusState:
         now = time.time()
+        from app.services.market_feed import market_feed
+        fx = market_feed.default_usd_inr
         if rate_usd and not rate_inr:
-            rate_inr = round(rate_usd * 93.85, 4)
+            rate_inr = round(rate_usd * fx, 4)
         elif rate_inr and not rate_usd:
-            rate_usd = round(rate_inr / 93.85, 6)
+            rate_usd = round(rate_inr / fx, 6)
 
         self.state.rate_usd = rate_usd
         self.state.rate_inr = rate_inr

@@ -11,6 +11,7 @@ let activeTimeframe = 1; // hours
 let audioAlertEnabled = true;
 let chartHistoryData = [];
 let latestAnalysis = null;
+let liveUsdInr = 92.90; // Updated dynamically from live FX & CoinGecko feeds
 let latestNexusState = {
   rate_usd: null,
   rate_inr: null,
@@ -207,6 +208,18 @@ function updateHeroDisplay(analysis) {
 
   const curInr = analysis.current_price_inr;
   const curUsd = analysis.current_price_usd;
+  if (analysis.usd_inr_rate && analysis.usd_inr_rate > 50) {
+    liveUsdInr = analysis.usd_inr_rate;
+  } else if (curInr > 0 && curUsd > 0) {
+    liveUsdInr = Number((curInr / curUsd).toFixed(2));
+  }
+  const fxElem = document.getElementById('liveFxRateDisplay');
+  if (fxElem) fxElem.textContent = `FX: ₹${liveUsdInr.toFixed(2)}/$`;
+  const basisElem = document.getElementById('marketBasisLabel');
+  if (basisElem) {
+    const indText = analysis.indian_exchange_inr ? ` • India Exch: ₹${analysis.indian_exchange_inr.toFixed(2)}` : '';
+    basisElem.textContent = `KuCoin / CoinGecko${indText}`;
+  }
   const pastInr = analysis.price_30m_inr;
   const pastUsd = analysis.price_30m_usd;
   const diffPct = analysis.diff_30m_pct;
@@ -303,28 +316,15 @@ function updateMatrixCell(windowKey, diffObj) {
     const sign = isPos ? '+' : '';
     const diffInrVal = diffObj.diff_inr !== undefined && diffObj.diff_inr !== null 
       ? Math.abs(diffObj.diff_inr).toFixed(2)
-      : (Math.abs(diffObj.diff_usd || 0) * 93.85).toFixed(2);
+      : (Math.abs(diffObj.diff_usd || 0) * liveUsdInr).toFixed(2);
 
     inrElem.textContent = `${sign}₹${diffInrVal}`;
     inrElem.className = `text-lg md:text-xl font-bold font-mono my-1 ${isPos ? 'text-emerald-400' : 'text-rose-400'}`;
     pctElem.textContent = `${sign}${diffObj.diff_pct.toFixed(2)}%`;
   } else {
-    // If diffObj is missing or null, calculate fallback from latestAnalysis or seeded intervals
-    const windowMinutes = { '5m': 5, '10m': 10, '15m': 15, '30m': 30, '1h': 60, '24h': 1440 }[windowKey] || 10;
-    let fallbackPct = 0.0;
-    let fallbackInr = 0.0;
-    
-    if (latestAnalysis && typeof latestAnalysis.diff_30m_pct === 'number') {
-      const ratio = windowMinutes / 30.0;
-      fallbackPct = Number((latestAnalysis.diff_30m_pct * Math.min(1.5, Math.max(0.2, ratio * 0.7))).toFixed(2));
-      fallbackInr = Number(((latestAnalysis.diff_30m_inr || 0.02) * Math.min(1.5, Math.max(0.2, ratio * 0.7))).toFixed(2));
-    }
-    
-    const isPos = fallbackPct >= 0;
-    const sign = isPos ? '+' : '';
-    inrElem.textContent = `${sign}₹${Math.abs(fallbackInr).toFixed(2)}`;
-    inrElem.className = `text-lg md:text-xl font-bold font-mono my-1 ${isPos ? 'text-emerald-400' : 'text-rose-400'}`;
-    pctElem.textContent = `${sign}${fallbackPct.toFixed(2)}%`;
+    inrElem.textContent = `--`;
+    inrElem.className = `text-lg md:text-xl font-bold font-mono my-1 text-slate-400`;
+    pctElem.textContent = `--`;
   }
 }
 
@@ -340,13 +340,13 @@ function updateNexusDisplay(nexus) {
 }
 
 function updateNexusMenuUI() {
-  const actualInr = latestAnalysis ? latestAnalysis.current_price_inr : (latestNexusState.actual_beldex_price_inr || 6.66);
-  const actualUsd = latestAnalysis ? latestAnalysis.current_price_usd : (latestNexusState.actual_beldex_price_usd || 0.0710);
+  const actualInr = latestAnalysis ? latestAnalysis.current_price_inr : (latestNexusState.actual_beldex_price_inr || 0);
+  const actualUsd = latestAnalysis ? latestAnalysis.current_price_usd : (latestNexusState.actual_beldex_price_usd || 0);
   
   // Rule: Selling Price = Actual Beldex Price + 0.45 paise (+₹0.45 INR)
   const premiumInr = nexusSellingPremiumInr;
   const sellingInr = actualInr + premiumInr;
-  const sellingUsd = sellingInr / 93.85;
+  const sellingUsd = liveUsdInr > 0 ? (sellingInr / liveUsdInr) : 0;
   const arbitragePct = actualInr > 0 ? ((sellingInr - actualInr) / actualInr) * 100.0 : 0;
   
   // 1. Update Card on Dashboard
@@ -550,122 +550,174 @@ function renderChartData() {
   const ref30m = [];
 
   const now = Date.now() / 1000;
+  const cutoff = now - (activeTimeframe * 3600);
+  const filtered = chartHistoryData.filter(t => t.timestamp >= cutoff);
+  const points = filtered.length >= 2 ? filtered : chartHistoryData.slice(-48);
   const target30mAgo = now - 1800;
 
-  // Find price ~30 mins ago in INR
+  const useUsd = currentCurrency === 'USD';
+  // Find price ~30 mins ago
   let p30mVal = null;
   for (let i = chartHistoryData.length - 1; i >= 0; i--) {
     if (chartHistoryData[i].timestamp <= target30mAgo) {
-      p30mVal = chartHistoryData[i].price_inr;
+      p30mVal = useUsd ? chartHistoryData[i].price_usd : chartHistoryData[i].price_inr;
       break;
     }
   }
-  if (!p30mVal && chartHistoryData.length > 0) {
-    p30mVal = chartHistoryData[0].price_inr;
+  if (!p30mVal && points.length > 0) {
+    p30mVal = useUsd ? points[0].price_usd : points[0].price_inr;
   }
 
-  chartHistoryData.forEach(tick => {
+  points.forEach(tick => {
     const d = new Date(tick.timestamp * 1000);
     labels.push(d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-    prices.push(tick.price_inr);
+    prices.push(useUsd ? tick.price_usd : tick.price_inr);
     ref30m.push(p30mVal);
   });
 
   priceChart.data.labels = labels;
   priceChart.data.datasets[0].data = prices;
-  priceChart.data.datasets[0].label = `BDX Rate (INR ₹)`;
+  priceChart.data.datasets[0].label = useUsd ? `BDX Rate (USD $)` : `BDX Rate (INR ₹)`;
   priceChart.data.datasets[1].data = ref30m;
+  priceChart.data.datasets[1].label = useUsd ? `30m Reference Level (USD)` : `30m Reference Level (INR)`;
+  priceChart.options.scales.y.ticks.callback = (val) =>
+    useUsd ? '$' + parseFloat(val).toFixed(4) : '₹' + parseFloat(val).toFixed(2);
   priceChart.update();
 }
 
 // --------------------------------------------------------------------------
-// STANDALONE / GITHUB PAGES BROWSER ENGINE (When no local server is active)
+// STANDALONE / GITHUB PAGES BROWSER ENGINE (Real Market Feeds - CORS Safe)
 // --------------------------------------------------------------------------
 async function fetchDirectMarket() {
   let p_usd = null;
   let p_inr = null;
+  let indianExchInr = null;
 
-  // 1. Fetch Gate.io (CORS supported)
-  try {
-    const gateRes = await fetch("https://api.gateio.ws/api/v4/spot/tickers?currency_pair=BDX_USDT");
-    if (gateRes.ok) {
-      const gateData = await gateRes.json();
-      if (Array.isArray(gateData) && gateData.length > 0) {
-        const lastGate = parseFloat(gateData[0].last);
-        if (lastGate > 0) {
-          p_usd = lastGate;
-          p_inr = lastGate * 93.85;
-        }
+  // Fetch live USD/INR FX + CoinGecko spot + CoinGecko tickers + CoinGecko 24h 5m history in parallel
+  const [fxRes, cgSimpleRes, cgTickersRes, cgChartRes] = await Promise.allSettled([
+    fetch("https://open.er-api.com/v6/latest/USD").then(r => r.ok ? r.json() : null),
+    fetch("https://api.coingecko.com/api/v3/simple/price?ids=beldex,tether&vs_currencies=usd,inr&include_24hr_change=true").then(r => r.ok ? r.json() : null),
+    fetch("https://api.coingecko.com/api/v3/coins/beldex/tickers").then(r => r.ok ? r.json() : null),
+    fetch("https://api.coingecko.com/api/v3/coins/beldex/market_chart?vs_currency=inr&days=1").then(r => r.ok ? r.json() : null)
+  ]);
+
+  // 1. Update live USD/INR FX rate dynamically
+  const fxData = fxRes.status === 'fulfilled' ? fxRes.value : null;
+  if (fxData && fxData.rates && fxData.rates.INR > 50) {
+    liveUsdInr = Number(fxData.rates.INR);
+  }
+  const cgSimple = cgSimpleRes.status === 'fulfilled' ? cgSimpleRes.value : null;
+  if (cgSimple && cgSimple.beldex) {
+    const cgUsd = parseFloat(cgSimple.beldex.usd || 0);
+    const cgInr = parseFloat(cgSimple.beldex.inr || 0);
+    if (!fxData && cgUsd > 0 && cgInr > 0) {
+      liveUsdInr = Number((cgInr / cgUsd).toFixed(4));
+    }
+  }
+
+  // 2. Extract Tier-1 liquid KuCoin price + Indian Exchange KoinBX BDX/INR from CoinGecko Tickers
+  const cgTickers = cgTickersRes.status === 'fulfilled' ? cgTickersRes.value : null;
+  let kucoinUsd = null;
+  if (cgTickers && Array.isArray(cgTickers.tickers)) {
+    for (const t of cgTickers.tickers) {
+      const mkt = (t.market && t.market.name) ? t.market.name.toLowerCase() : '';
+      if (mkt.includes('kucoin') && t.base === 'BDX' && t.target === 'USDT' && t.last > 0) {
+        kucoinUsd = parseFloat(t.last);
+      }
+      if ((t.target === 'INR') && t.last > 0 && !indianExchInr) {
+        indianExchInr = parseFloat(t.last);
       }
     }
-  } catch (e) {}
+  }
 
-  // 2. Fallback to KuCoin API or baseline
-  if (!p_usd) {
+  // 3. Determine accurate Global Spot BDX price in USD & INR
+  if (kucoinUsd && kucoinUsd > 0) {
+    p_usd = kucoinUsd;
+    p_inr = Number((kucoinUsd * liveUsdInr).toFixed(4));
+  } else if (cgSimple && cgSimple.beldex && cgSimple.beldex.usd > 0) {
+    p_usd = parseFloat(cgSimple.beldex.usd);
+    p_inr = parseFloat(cgSimple.beldex.inr) || Number((p_usd * liveUsdInr).toFixed(4));
+  } else {
+    // Secondary fallback only if liquid (quote_volume >= 1000)
     try {
-      const kcRes = await fetch("https://api.kucoin.com/api/v1/market/orderbook/level1?symbol=BDX-USDT");
-      if (kcRes.ok) {
-        const kcData = await kcRes.json();
-        if (kcData && kcData.data && kcData.data.price) {
-          const p = parseFloat(kcData.data.price);
-          if (p > 0) {
-            p_usd = p;
-            p_inr = p * 93.85;
+      const gateRes = await fetch("https://api.gateio.ws/api/v4/spot/tickers?currency_pair=BDX_USDT");
+      if (gateRes.ok) {
+        const gateData = await gateRes.json();
+        if (Array.isArray(gateData) && gateData.length > 0) {
+          const lastGate = parseFloat(gateData[0].last);
+          const volGate = parseFloat(gateData[0].quote_volume || 0);
+          if (lastGate > 0 && volGate >= 1000) {
+            p_usd = lastGate;
+            p_inr = Number((lastGate * liveUsdInr).toFixed(4));
           }
         }
       }
     } catch (e) {}
   }
 
-  if (!p_usd) {
-    p_usd = 0.0718;
-    p_inr = 6.74;
-  }
-
   const now = Date.now() / 1000;
 
-  // Maintain local history in localStorage
+  // 4. Build real historical ticks from CoinGecko 5-minute market_chart (no fake multipliers!)
   let stored = [];
-  try {
-    stored = JSON.parse(localStorage.getItem('bdx_sentinel_ticks') || '[]');
-  } catch (e) {}
-
-  // Ensure robust historical seed if stored is empty or fresh so all timeframes immediately have reference points
-  if (!Array.isArray(stored) || stored.length < 8) {
-    stored = [
-      { timestamp: now - 86400, price_usd: p_usd * 0.985, price_inr: p_inr * 0.985 }, // 24h ago
-      { timestamp: now - 43200, price_usd: p_usd * 0.990, price_inr: p_inr * 0.990 }, // 12h ago
-      { timestamp: now - 21600, price_usd: p_usd * 0.992, price_inr: p_inr * 0.992 }, // 6h ago
-      { timestamp: now - 3600,  price_usd: p_usd * 0.996, price_inr: p_inr * 0.996 }, // 1h ago
-      { timestamp: now - 1800,  price_usd: p_usd * 0.992, price_inr: p_inr * 0.992 }, // 30m ago
-      { timestamp: now - 900,   price_usd: p_usd * 0.995, price_inr: p_inr * 0.995 }, // 15m ago
-      { timestamp: now - 600,   price_usd: p_usd * 0.997, price_inr: p_inr * 0.997 }, // 10m ago
-      { timestamp: now - 300,   price_usd: p_usd * 0.998, price_inr: p_inr * 0.998 }  // 5m ago
-    ];
+  const cgChart = cgChartRes.status === 'fulfilled' ? cgChartRes.value : null;
+  if (cgChart && Array.isArray(cgChart.prices) && cgChart.prices.length > 0) {
+    stored = cgChart.prices
+      .filter(pt => Array.isArray(pt) && pt[1] > 0)
+      .map(pt => ({
+        timestamp: pt[0] / 1000.0,
+        price_inr: Number(pt[1].toFixed(4)),
+        price_usd: Number((pt[1] / liveUsdInr).toFixed(6))
+      }));
+  } else {
+    try {
+      stored = JSON.parse(localStorage.getItem('sentrix_market_ticks_v2') || '[]');
+    } catch (e) {}
   }
 
-  stored.push({
-    timestamp: now,
-    price_usd: p_usd,
-    price_inr: p_inr
-  });
+  if (!p_usd && stored.length > 0) {
+    const lastPt = stored[stored.length - 1];
+    p_usd = lastPt.price_usd;
+    p_inr = lastPt.price_inr;
+  }
 
-  if (stored.length > 500) stored.shift();
+  if (!p_usd || !p_inr) {
+    showToast("⚠️ Unable to reach live market APIs right now. Retrying...", "error");
+    return null;
+  }
+
+  // Append current live spot tick if newer than last chart point
+  if (stored.length === 0 || (now - stored[stored.length - 1].timestamp) > 30) {
+    stored.push({
+      timestamp: now,
+      price_usd: p_usd,
+      price_inr: p_inr
+    });
+  } else {
+    stored[stored.length - 1] = {
+      timestamp: now,
+      price_usd: p_usd,
+      price_inr: p_inr
+    };
+  }
+
+  if (stored.length > 500) stored = stored.slice(-500);
   try {
-    localStorage.setItem('bdx_sentinel_ticks', JSON.stringify(stored));
+    localStorage.setItem('sentrix_market_ticks_v2', JSON.stringify(stored));
+    localStorage.removeItem('bdx_sentinel_ticks'); // Clear legacy synthetic ticks
   } catch (e) {}
 
   chartHistoryData = stored;
   renderChartData();
 
-  // Helper to compute window diff against stored ticks
+  // Compute real window differences from historical ticks within bounded lookback
   const calcWindow = (targetSec, label) => {
     const targetTime = now - targetSec;
-    let closest = stored[0];
+    const maxLookback = Math.max(600, targetSec * 1.5);
+    let closest = null;
     let minDelta = Infinity;
     for (const t of stored) {
       const delta = Math.abs(t.timestamp - targetTime);
-      if (delta < minDelta) {
+      if (delta <= maxLookback && delta < minDelta) {
         minDelta = delta;
         closest = t;
       }
@@ -673,6 +725,17 @@ async function fetchDirectMarket() {
     const pastI = closest ? closest.price_inr : p_inr;
     const pastU = closest ? closest.price_usd : p_usd;
     const diffI = p_inr - pastI;
+    const diffU = p_usd - pastU;
+    const diffP = pastI > 0 ? ((p_inr - pastI) / pastI) * 100.0 : 0.0;
+    return {
+      window_label: label,
+      past_price_usd: pastU,
+      past_price_inr: pastI,
+      diff_usd: diffU,
+      diff_inr: diffI,
+      diff_pct: Number(diffP.toFixed(2))
+    };
+  };
     const diffU = p_usd - pastU;
     const diffP = pastI > 0 ? ((p_inr - pastI) / pastI) * 100.0 : 0.0;
     return {
@@ -715,6 +778,8 @@ async function fetchDirectMarket() {
   const analysis = {
     current_price_usd: p_usd,
     current_price_inr: p_inr,
+    usd_inr_rate: liveUsdInr,
+    indian_exchange_inr: indianExchInr,
     timestamp: now,
     source: 'live_market_feed',
     price_30m_usd: diff_30m.past_price_usd,
@@ -1217,7 +1282,7 @@ document.getElementById('settingsForm').addEventListener('submit', async (e) => 
 // Setup Bookmarklet Code
 function setupBookmarklet() {
   const port = window.location.port || '8080';
-  const script = `javascript:(function(){try{var text=document.body.innerText;var bdxMatch=text.match(/(?:BDX|Beldex)[^0-9]*([0-9]+(?:\\.[0-9]+)?)/i);var inrMatch=text.match(/(?:₹|INR|Rs)[^0-9]*([0-9]+(?:\\.[0-9]+)?)/i);var usdMatch=text.match(/(?:\\$|USDT|USD)[^0-9]*([0-9]+(?:\\.[0-9]+)?)/i);var rate_usd=usdMatch?parseFloat(usdMatch[1]):null;var rate_inr=inrMatch?parseFloat(inrMatch[1]):null;if(!rate_usd&&!rate_inr&&bdxMatch){rate_usd=parseFloat(bdxMatch[1]);}if(!rate_usd&&!rate_inr){var promptRate=prompt("Enter current Beldex INR rate seen on Nexus:","7.00");if(promptRate)rate_inr=parseFloat(promptRate);}fetch('http://localhost:${port}/api/nexus/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rate_usd:rate_usd,rate_inr:rate_inr,note:'Nexus Browser Tab ('+window.location.host+')'})}).then(r=>r.json()).then(data=>{alert('✅ Beldex Rate successfully synced to Sentrix Dashboard!\\nRate: ₹'+(rate_inr?rate_inr:rate_usd*93.85));}).catch(err=>{alert('❌ Could not connect to Sentrix (http://localhost:${port}).\\nMake sure the app is running!');});}catch(e){alert('Error running bookmarklet: '+e.message);}})();`;
+  const script = `javascript:(function(){try{var text=document.body.innerText;var bdxMatch=text.match(/(?:BDX|Beldex)[^0-9]*([0-9]+(?:\\.[0-9]+)?)/i);var inrMatch=text.match(/(?:₹|INR|Rs)[^0-9]*([0-9]+(?:\\.[0-9]+)?)/i);var usdMatch=text.match(/(?:\\$|USDT|USD)[^0-9]*([0-9]+(?:\\.[0-9]+)?)/i);var rate_usd=usdMatch?parseFloat(usdMatch[1]):null;var rate_inr=inrMatch?parseFloat(inrMatch[1]):null;if(!rate_usd&&!rate_inr&&bdxMatch){rate_usd=parseFloat(bdxMatch[1]);}if(!rate_usd&&!rate_inr){var promptRate=prompt("Enter current Beldex INR rate seen on Nexus:","7.00");if(promptRate)rate_inr=parseFloat(promptRate);}fetch('http://localhost:${port}/api/nexus/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rate_usd:rate_usd,rate_inr:rate_inr,note:'Nexus Browser Tab ('+window.location.host+')'})}).then(r=>r.json()).then(data=>{alert('✅ Beldex Rate successfully synced to Sentrix Dashboard!\\nRate: ₹'+(rate_inr?rate_inr:(rate_usd*${liveUsdInr.toFixed(2)}).toFixed(2)));}).catch(err=>{alert('❌ Could not connect to Sentrix (http://localhost:${port}).\\nMake sure the app is running!');});}catch(e){alert('Error running bookmarklet: '+e.message);}})();`;
 
   const anchor = document.getElementById('bookmarkletAnchor');
   if (anchor) anchor.setAttribute('href', script);
@@ -1296,8 +1361,50 @@ document.addEventListener('DOMContentLoaded', () => {
       .catch(() => {
         fetchDirectMarket();
       });
+    fetch('/api/rates/history?hours=24&source=composite')
+      .then(r => r.json())
+      .then(d => {
+        if (d && Array.isArray(d.ticks) && d.ticks.length > 0) {
+          chartHistoryData = d.ticks;
+          renderChartData();
+        }
+      })
+      .catch(() => {});
   }
   updateCountdownUI();
+
+  // Chart Timeframe Switchers & Currency Toggle
+  const tfButtons = [
+    { id: 'chartTf1h', hours: 1 },
+    { id: 'chartTf6h', hours: 6 },
+    { id: 'chartTf24h', hours: 24 }
+  ];
+  tfButtons.forEach(({ id, hours }) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('click', () => {
+      activeTimeframe = hours;
+      tfButtons.forEach(b => {
+        const btn = document.getElementById(b.id);
+        if (btn) {
+          btn.className = b.hours === hours
+            ? 'px-2 py-1 rounded bg-blue-600 text-white font-medium'
+            : 'px-2 py-1 rounded text-slate-400 hover:text-white font-medium';
+        }
+      });
+      renderChartData();
+    });
+  });
+
+  const btnCurToggle = document.getElementById('btnCurrencyToggle');
+  if (btnCurToggle) {
+    btnCurToggle.addEventListener('click', () => {
+      currentCurrency = currentCurrency === 'INR' ? 'USD' : 'INR';
+      const txt = document.getElementById('curToggleText');
+      if (txt) txt.textContent = currentCurrency === 'INR' ? 'INR (₹)' : 'USD ($)';
+      renderChartData();
+    });
+  }
 
   // 1-second interval ticker for countdown
   setInterval(() => {
@@ -1338,6 +1445,18 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         const res = await fetch('/api/rates/scan-now', { method: 'POST' });
         if (res.ok) {
+          const payload = await res.json();
+          if (payload.result && payload.result.analysis) {
+            updateHeroDisplay(payload.result.analysis);
+          }
+          const hRes = await fetch('/api/rates/history?hours=24&source=composite');
+          if (hRes.ok) {
+            const hData = await hRes.json();
+            if (hData && Array.isArray(hData.ticks) && hData.ticks.length > 0) {
+              chartHistoryData = hData.ticks;
+              renderChartData();
+            }
+          }
           showToast('🔄 Live scan complete! INR prices updated.', 'success');
         } else {
           await fetchDirectMarket();
@@ -1506,8 +1625,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const val = parseFloat(document.getElementById('modalManualRateInput').value);
     if (!val || val <= 0) return;
     const isUsd = val < 2.0;
-    const rInr = isUsd ? (val * 93.85) : val;
-    const rUsd = isUsd ? val : (val / 93.85);
+    const rInr = isUsd ? (val * liveUsdInr) : val;
+    const rUsd = isUsd ? val : (val / liveUsdInr);
 
     latestNexusState.rate_inr = rInr;
     latestNexusState.rate_usd = rUsd;
@@ -1569,8 +1688,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initAudio();
 
     if (isStaticHosted || !ws || ws.readyState !== WebSocket.OPEN) {
-      const baseInr = latestAnalysis ? latestAnalysis.current_price_inr : 6.68;
-      const baseUsd = latestAnalysis ? latestAnalysis.current_price_usd : 0.0711;
+      const baseInr = latestAnalysis ? latestAnalysis.current_price_inr : 6.32;
+      const baseUsd = latestAnalysis ? latestAnalysis.current_price_usd : (baseInr / liveUsdInr);
       const newInr = baseInr * (1.0 + (pct / 100.0));
       const newUsd = baseUsd * (1.0 + (pct / 100.0));
       const holdings = clientSettings.user_holdings_bdx || 10000;

@@ -21,15 +21,18 @@ class SimulateSurgeRequest(BaseModel):
 async def get_current_rates():
     """
     Returns latest price snapshot, 30-minute rate difference, and market breakdown.
+    Automatically refreshes if latest market tick is missing or older than 2 minutes.
     """
     analysis = await rate_analyzer.analyze_current_rate()
-    if not analysis:
-        # Fallback to immediate fetch if database has no ticks yet
+    if not analysis or (time.time() - analysis.timestamp) > 120.0:
         cycle = await scheduler.run_single_cycle()
         if cycle and cycle.get("analysis"):
             return cycle["analysis"]
-        raise HTTPException(status_code=503, detail="Market feed currently initializing, please retry in a few seconds.")
-    return analysis.model_dump()
+        if not analysis:
+            raise HTTPException(status_code=503, detail="Market feed currently initializing, please retry in a few seconds.")
+    res = analysis.model_dump()
+    res["usd_inr_rate"] = market_feed.default_usd_inr
+    return res
 
 @router.get("/diff-30m")
 async def get_30m_difference():
@@ -111,7 +114,7 @@ async def simulate_price_surge(
         diff_pct = req.surge_percent
         new_usd = base_usd * (1.0 + (diff_pct / 100.0))
 
-    new_inr = round(new_usd * 93.85, 4)
+    new_inr = round(new_usd * market_feed.default_usd_inr, 4)
     now = time.time()
 
     # Record historical tick 30 mins ago if not present
