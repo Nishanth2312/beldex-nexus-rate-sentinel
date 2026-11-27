@@ -733,17 +733,6 @@ async function fetchDirectMarket() {
       diff_pct: Number(diffP.toFixed(2))
     };
   };
-    const diffU = p_usd - pastU;
-    const diffP = pastI > 0 ? ((p_inr - pastI) / pastI) * 100.0 : 0.0;
-    return {
-      window_label: label,
-      past_price_usd: pastU,
-      past_price_inr: pastI,
-      diff_usd: diffU,
-      diff_inr: diffI,
-      diff_pct: Number(diffP.toFixed(2))
-    };
-  };
 
   const diff_5m = calcWindow(300, '5m');
   const diff_10m = calcWindow(600, '10m');
