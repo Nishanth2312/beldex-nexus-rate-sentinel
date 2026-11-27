@@ -74,3 +74,12 @@ async def serve_index():
     if index_path.exists():
         return FileResponse(index_path)
     return {"message": "Sentrix API is running. UI not installed yet."}
+
+@app.get("/{asset_name}")
+async def serve_root_static_assets(asset_name: str):
+    if asset_name in {"app.js", "styles.css", "bookmarklet.js"}:
+        asset_path = STATIC_DIR / asset_name
+        if asset_path.exists():
+            return FileResponse(asset_path)
+    from fastapi import HTTPException
+    raise HTTPException(status_code=404, detail="Not Found")
