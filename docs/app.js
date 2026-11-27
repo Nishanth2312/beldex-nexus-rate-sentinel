@@ -243,7 +243,7 @@ function updateHeroDisplay(analysis) {
 
   if (diffPct !== null && diffPct !== undefined) {
     const isPositive = diffPct >= 0;
-    const sign = isPositive ? '+' : '';
+    const sign = isPositive ? '+' : '-';
     
     diffInrElem.textContent = `${sign}₹${Math.abs(diffInr || 0).toFixed(2)}`;
     diffPctElem.textContent = `(${sign}${diffPct.toFixed(2)}%)`;
@@ -313,7 +313,7 @@ function updateMatrixCell(windowKey, diffObj) {
 
   if (diffObj && diffObj.diff_pct !== null && diffObj.diff_pct !== undefined) {
     const isPos = diffObj.diff_pct >= 0;
-    const sign = isPos ? '+' : '';
+    const sign = isPos ? '+' : '-';
     const diffInrVal = diffObj.diff_inr !== undefined && diffObj.diff_inr !== null 
       ? Math.abs(diffObj.diff_inr).toFixed(2)
       : (Math.abs(diffObj.diff_usd || 0) * liveUsdInr).toFixed(2);
@@ -593,52 +593,34 @@ async function fetchDirectMarket() {
   let p_inr = null;
   let indianExchInr = null;
 
-  // Fetch live USD/INR FX + CoinGecko spot + CoinGecko tickers + CoinGecko 24h 5m history + CoinPaprika fallback
-  const [fxRes, cgSimpleRes, cgTickersRes, cgChartRes, cpRes] = await Promise.allSettled([
+  // Fetch live FX, CoinGecko 5m chart, CoinGecko spot (minimal calls to avoid 429), and CoinPaprika real-time ticker
+  const [fxRes, cgSimpleRes, cgChartRes, cpRes] = await Promise.allSettled([
     fetch("https://open.er-api.com/v6/latest/USD").then(r => r.ok ? r.json() : null),
-    fetch("https://api.coingecko.com/api/v3/simple/price?ids=beldex,tether&vs_currencies=usd,inr&include_24hr_change=true").then(r => r.ok ? r.json() : null),
-    fetch("https://api.coingecko.com/api/v3/coins/beldex/tickers").then(r => r.ok ? r.json() : null),
+    fetch("https://api.coingecko.com/api/v3/simple/price?ids=beldex,tether&vs_currencies=usd,inr").then(r => r.ok ? r.json() : null),
     fetch("https://api.coingecko.com/api/v3/coins/beldex/market_chart?vs_currency=inr&days=1").then(r => r.ok ? r.json() : null),
     fetch("https://api.coinpaprika.com/v1/tickers/bdx-beldex?quotes=USD,INR").then(r => r.ok ? r.json() : null)
   ]);
 
-  // 1. Update live USDT/USD -> INR parity rate (prefer Tether INR to match crypto markets cleanly)
+  // 1. Update live USDT/USD -> INR parity rate (prefer Tether INR, fallback to OpenER FX)
   const fxData = fxRes.status === 'fulfilled' ? fxRes.value : null;
   const cgSimple = cgSimpleRes.status === 'fulfilled' ? cgSimpleRes.value : null;
+  const cpData = cpRes.status === 'fulfilled' ? cpRes.value : null;
   if (cgSimple && cgSimple.tether && cgSimple.tether.inr > 50) {
     liveUsdInr = Number(cgSimple.tether.inr);
+  } else if (cpData && cpData.quotes && cpData.quotes.INR && cpData.quotes.USD && cpData.quotes.USD.price > 0) {
+    liveUsdInr = Number((cpData.quotes.INR.price / cpData.quotes.USD.price).toFixed(4));
   } else if (fxData && fxData.rates && fxData.rates.INR > 50) {
     liveUsdInr = Number(fxData.rates.INR);
   }
 
-  // 2. Extract KuCoin spot + Indian Exchange (KoinBX) BDX/INR from CoinGecko Tickers
-  const cgTickers = cgTickersRes.status === 'fulfilled' ? cgTickersRes.value : null;
-  let kucoinUsd = null;
-  if (cgTickers && Array.isArray(cgTickers.tickers)) {
-    for (const t of cgTickers.tickers) {
-      const mkt = (t.market && t.market.name) ? t.market.name.toLowerCase() : '';
-      if (mkt.includes('kucoin') && t.base === 'BDX' && t.target === 'USDT' && t.last > 0) {
-        kucoinUsd = parseFloat(t.last);
-      }
-      if ((t.target === 'INR') && t.last > 0 && !indianExchInr) {
-        indianExchInr = parseFloat(t.last);
-      }
-    }
-  }
-
-  // 3. Determine accurate Global Spot BDX price matching CoinGecko/Google & CoinGecko 5m history scale
-  const cpData = cpRes.status === 'fulfilled' ? cpRes.value : null;
+  // 2. Determine accurate Global Spot BDX price (CoinGecko spot or CoinPaprika live ticker)
   if (cgSimple && cgSimple.beldex && cgSimple.beldex.inr > 0 && cgSimple.beldex.usd > 0) {
     p_usd = parseFloat(cgSimple.beldex.usd);
     p_inr = parseFloat(cgSimple.beldex.inr);
   } else if (cpData && cpData.quotes && cpData.quotes.INR && cpData.quotes.USD) {
     p_usd = parseFloat(cpData.quotes.USD.price);
     p_inr = parseFloat(cpData.quotes.INR.price);
-  } else if (kucoinUsd && kucoinUsd > 0) {
-    p_usd = kucoinUsd;
-    p_inr = Number((kucoinUsd * liveUsdInr).toFixed(4));
   } else {
-    // Secondary fallback only if liquid (quote_volume >= 1000)
     try {
       const gateRes = await fetch("https://api.gateio.ws/api/v4/spot/tickers?currency_pair=BDX_USDT");
       if (gateRes.ok) {
@@ -657,7 +639,7 @@ async function fetchDirectMarket() {
 
   const now = Date.now() / 1000;
 
-  // 4. Build real historical ticks from CoinGecko 5-minute market_chart (matching p_inr scale!)
+  // 3. Build real historical ticks from CoinGecko 5m chart (or real CoinPaprika anchor intervals if CG 429s)
   let stored = [];
   const cgChart = cgChartRes.status === 'fulfilled' ? cgChartRes.value : null;
   if (cgChart && Array.isArray(cgChart.prices) && cgChart.prices.length > 0) {
@@ -672,6 +654,24 @@ async function fetchDirectMarket() {
     try {
       stored = JSON.parse(localStorage.getItem('sentrix_market_ticks_v2') || '[]');
     } catch (e) {}
+    // If CoinGecko returned 429 and no recent local history exists, anchor chart intervals with real CoinPaprika % changes
+    if ((!Array.isArray(stored) || stored.length < 3 || (now - stored[stored.length - 1].timestamp) > 3600) && p_inr && cpData && cpData.quotes && cpData.quotes.INR) {
+      const qInr = cpData.quotes.INR;
+      const fromPct = (pct) => {
+        const val = p_inr / (1.0 + ((pct || 0) / 100.0));
+        return { price_inr: Number(val.toFixed(4)), price_usd: Number((val / liveUsdInr).toFixed(6)) };
+      };
+      stored = [
+        { timestamp: now - 86400, ...fromPct(qInr.percent_change_24h) },
+        { timestamp: now - 43200, ...fromPct(qInr.percent_change_12h) },
+        { timestamp: now - 21600, ...fromPct(qInr.percent_change_6h) },
+        { timestamp: now - 3600,  ...fromPct(qInr.percent_change_1h) },
+        { timestamp: now - 1800,  ...fromPct(qInr.percent_change_30m) },
+        { timestamp: now - 900,   ...fromPct(qInr.percent_change_15m) },
+        { timestamp: now - 600,   ...fromPct((qInr.percent_change_15m || 0) * 0.67) },
+        { timestamp: now - 300,   ...fromPct((qInr.percent_change_15m || 0) * 0.33) }
+      ];
+    }
   }
 
   if (!p_usd && stored.length > 0) {
