@@ -76,8 +76,12 @@ class RateAnalyzerService:
         target_ts = now - (minutes * 60)
         lookback = max(600, minutes * 90)
         past = await get_price_at_or_before(target_ts, source=source, max_lookback_seconds=lookback)
-        if (not past or past["price_usd"] <= 0) and minutes >= 1440:
-            past = await get_closest_tick_near(target_ts, source=source, tolerance_seconds=1200.0)
+        if not past or past["price_usd"] <= 0:
+            tol = 1200.0 if minutes >= 1440 else (240.0 if minutes <= 10 else 0.0)
+            if tol > 0:
+                candidate = await get_closest_tick_near(target_ts, source=source, tolerance_seconds=tol)
+                if candidate and (now - candidate["timestamp"]) >= 120.0:
+                    past = candidate
 
         if not past or past["price_usd"] <= 0 or past["price_inr"] <= 0:
             return WindowDiff(

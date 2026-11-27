@@ -48,21 +48,10 @@ class MarketFeedService:
         }
 
     async def refresh_usd_inr_rate(self, client: httpx.AsyncClient, force: bool = False) -> float:
-        """Fetch live USD -> INR forex rate (cached 5 minutes)."""
+        """Fetch live USDT/USD -> INR crypto market parity rate (cached 5 minutes)."""
         now = time.time()
         if not force and (now - self._last_fx_fetch) < 300.0 and self.default_usd_inr > 50.0:
             return self.default_usd_inr
-
-        try:
-            resp = await client.get("https://open.er-api.com/v6/latest/USD", headers=self.headers)
-            if resp.status_code == 200:
-                inr = float(resp.json().get("rates", {}).get("INR", 0.0))
-                if 60.0 < inr < 150.0:
-                    self.default_usd_inr = round(inr, 4)
-                    self._last_fx_fetch = now
-                    return self.default_usd_inr
-        except Exception as e:
-            logger.debug(f"OpenER FX fetch skipped: {e}")
 
         try:
             resp = await client.get(
@@ -77,6 +66,17 @@ class MarketFeedService:
                     return self.default_usd_inr
         except Exception as e:
             logger.debug(f"CoinGecko FX fetch skipped: {e}")
+
+        try:
+            resp = await client.get("https://open.er-api.com/v6/latest/USD", headers=self.headers)
+            if resp.status_code == 200:
+                inr = float(resp.json().get("rates", {}).get("INR", 0.0))
+                if 60.0 < inr < 150.0:
+                    self.default_usd_inr = round(inr, 4)
+                    self._last_fx_fetch = now
+                    return self.default_usd_inr
+        except Exception as e:
+            logger.debug(f"OpenER FX fetch skipped: {e}")
 
         return self.default_usd_inr
 
@@ -221,28 +221,60 @@ class MarketFeedService:
         return None
 
     async def fetch_historical_24h(self) -> List[Dict[str, float]]:
-        """Fetch real 5-minute 24h market chart history in INR & USD from CoinGecko."""
+        """Fetch real 5-minute history: KuCoin 5m candles (last ~8h) + CoinGecko 24h earlier reference."""
+        ticks: List[Dict[str, float]] = []
+        kc_earliest_ts = float("inf")
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 usd_inr = await self.refresh_usd_inr_rate(client)
-                resp = await client.get(
-                    "https://api.coingecko.com/api/v3/coins/beldex/market_chart?vs_currency=inr&days=1",
-                    headers=self.headers
-                )
-                if resp.status_code == 200:
-                    prices = resp.json().get("prices", [])
-                    ticks = []
-                    for ts_ms, price_inr in prices:
-                        if price_inr and price_inr > 0:
-                            ticks.append({
-                                "timestamp": float(ts_ms) / 1000.0,
-                                "price_inr": round(float(price_inr), 4),
-                                "price_usd": round(float(price_inr) / usd_inr, 6)
-                            })
-                    return ticks
+
+                # 1. KuCoin real 5-min candles (exact same scale as Tier-1 KuCoin live spot)
+                kc_ticks: List[Dict[str, float]] = []
+                try:
+                    kc_resp = await client.get(
+                        "https://api.kucoin.com/api/v1/market/candles?type=5min&symbol=BDX-USDT",
+                        headers=self.headers
+                    )
+                    if kc_resp.status_code == 200:
+                        for row in kc_resp.json().get("data", []):
+                            if len(row) >= 3:
+                                ts_sec = float(row[0])
+                                close_usd = float(row[2])
+                                if close_usd > 0:
+                                    kc_ticks.append({
+                                        "timestamp": ts_sec,
+                                        "price_usd": round(close_usd, 6),
+                                        "price_inr": round(close_usd * usd_inr, 4)
+                                    })
+                        kc_ticks.sort(key=lambda x: x["timestamp"])
+                        if kc_ticks:
+                            kc_earliest_ts = kc_ticks[0]["timestamp"]
+                except Exception as e:
+                    logger.debug(f"KuCoin candles fetch skipped: {e}")
+
+                # 2. CoinGecko 24h chart strictly for timestamps older than KuCoin's 8h window
+                cg_ticks: List[Dict[str, float]] = []
+                try:
+                    cg_resp = await client.get(
+                        "https://api.coingecko.com/api/v3/coins/beldex/market_chart?vs_currency=inr&days=1",
+                        headers=self.headers
+                    )
+                    if cg_resp.status_code == 200:
+                        for ts_ms, price_inr in cg_resp.json().get("prices", []):
+                            ts_sec = float(ts_ms) / 1000.0
+                            if price_inr and price_inr > 0 and ts_sec < (kc_earliest_ts - 60):
+                                cg_ticks.append({
+                                    "timestamp": ts_sec,
+                                    "price_inr": round(float(price_inr), 4),
+                                    "price_usd": round(float(price_inr) / usd_inr, 6)
+                                })
+                except Exception as e:
+                    logger.debug(f"CoinGecko chart fetch skipped: {e}")
+
+                ticks = cg_ticks + kc_ticks
         except Exception as e:
             logger.warning(f"Historical market chart fetch failed: {e}")
-        return []
+        return ticks
 
     async def get_market_snapshot(self) -> Optional[MarketSnapshot]:
         async with httpx.AsyncClient(timeout=self.timeout) as client:

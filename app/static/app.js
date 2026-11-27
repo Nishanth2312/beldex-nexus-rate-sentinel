@@ -593,29 +593,25 @@ async function fetchDirectMarket() {
   let p_inr = null;
   let indianExchInr = null;
 
-  // Fetch live USD/INR FX + CoinGecko spot + CoinGecko tickers + CoinGecko 24h 5m history in parallel
-  const [fxRes, cgSimpleRes, cgTickersRes, cgChartRes] = await Promise.allSettled([
+  // Fetch live USD/INR FX + CoinGecko spot + CoinGecko tickers + CoinGecko 24h 5m history + CoinPaprika fallback
+  const [fxRes, cgSimpleRes, cgTickersRes, cgChartRes, cpRes] = await Promise.allSettled([
     fetch("https://open.er-api.com/v6/latest/USD").then(r => r.ok ? r.json() : null),
     fetch("https://api.coingecko.com/api/v3/simple/price?ids=beldex,tether&vs_currencies=usd,inr&include_24hr_change=true").then(r => r.ok ? r.json() : null),
     fetch("https://api.coingecko.com/api/v3/coins/beldex/tickers").then(r => r.ok ? r.json() : null),
-    fetch("https://api.coingecko.com/api/v3/coins/beldex/market_chart?vs_currency=inr&days=1").then(r => r.ok ? r.json() : null)
+    fetch("https://api.coingecko.com/api/v3/coins/beldex/market_chart?vs_currency=inr&days=1").then(r => r.ok ? r.json() : null),
+    fetch("https://api.coinpaprika.com/v1/tickers/bdx-beldex?quotes=USD,INR").then(r => r.ok ? r.json() : null)
   ]);
 
-  // 1. Update live USD/INR FX rate dynamically
+  // 1. Update live USDT/USD -> INR parity rate (prefer Tether INR to match crypto markets cleanly)
   const fxData = fxRes.status === 'fulfilled' ? fxRes.value : null;
-  if (fxData && fxData.rates && fxData.rates.INR > 50) {
+  const cgSimple = cgSimpleRes.status === 'fulfilled' ? cgSimpleRes.value : null;
+  if (cgSimple && cgSimple.tether && cgSimple.tether.inr > 50) {
+    liveUsdInr = Number(cgSimple.tether.inr);
+  } else if (fxData && fxData.rates && fxData.rates.INR > 50) {
     liveUsdInr = Number(fxData.rates.INR);
   }
-  const cgSimple = cgSimpleRes.status === 'fulfilled' ? cgSimpleRes.value : null;
-  if (cgSimple && cgSimple.beldex) {
-    const cgUsd = parseFloat(cgSimple.beldex.usd || 0);
-    const cgInr = parseFloat(cgSimple.beldex.inr || 0);
-    if (!fxData && cgUsd > 0 && cgInr > 0) {
-      liveUsdInr = Number((cgInr / cgUsd).toFixed(4));
-    }
-  }
 
-  // 2. Extract Tier-1 liquid KuCoin price + Indian Exchange KoinBX BDX/INR from CoinGecko Tickers
+  // 2. Extract KuCoin spot + Indian Exchange (KoinBX) BDX/INR from CoinGecko Tickers
   const cgTickers = cgTickersRes.status === 'fulfilled' ? cgTickersRes.value : null;
   let kucoinUsd = null;
   if (cgTickers && Array.isArray(cgTickers.tickers)) {
@@ -630,13 +626,17 @@ async function fetchDirectMarket() {
     }
   }
 
-  // 3. Determine accurate Global Spot BDX price in USD & INR
-  if (kucoinUsd && kucoinUsd > 0) {
+  // 3. Determine accurate Global Spot BDX price matching CoinGecko/Google & CoinGecko 5m history scale
+  const cpData = cpRes.status === 'fulfilled' ? cpRes.value : null;
+  if (cgSimple && cgSimple.beldex && cgSimple.beldex.inr > 0 && cgSimple.beldex.usd > 0) {
+    p_usd = parseFloat(cgSimple.beldex.usd);
+    p_inr = parseFloat(cgSimple.beldex.inr);
+  } else if (cpData && cpData.quotes && cpData.quotes.INR && cpData.quotes.USD) {
+    p_usd = parseFloat(cpData.quotes.USD.price);
+    p_inr = parseFloat(cpData.quotes.INR.price);
+  } else if (kucoinUsd && kucoinUsd > 0) {
     p_usd = kucoinUsd;
     p_inr = Number((kucoinUsd * liveUsdInr).toFixed(4));
-  } else if (cgSimple && cgSimple.beldex && cgSimple.beldex.usd > 0) {
-    p_usd = parseFloat(cgSimple.beldex.usd);
-    p_inr = parseFloat(cgSimple.beldex.inr) || Number((p_usd * liveUsdInr).toFixed(4));
   } else {
     // Secondary fallback only if liquid (quote_volume >= 1000)
     try {
@@ -657,7 +657,7 @@ async function fetchDirectMarket() {
 
   const now = Date.now() / 1000;
 
-  // 4. Build real historical ticks from CoinGecko 5-minute market_chart (no fake multipliers!)
+  // 4. Build real historical ticks from CoinGecko 5-minute market_chart (matching p_inr scale!)
   let stored = [];
   const cgChart = cgChartRes.status === 'fulfilled' ? cgChartRes.value : null;
   if (cgChart && Array.isArray(cgChart.prices) && cgChart.prices.length > 0) {
@@ -685,19 +685,15 @@ async function fetchDirectMarket() {
     return null;
   }
 
-  // Append current live spot tick if newer than last chart point
-  if (stored.length === 0 || (now - stored[stored.length - 1].timestamp) > 30) {
+  // Keep latest point exact on CoinGecko chart scale so 5m/10m/30m deltas never jump due to rounding
+  if (stored.length === 0 || (now - stored[stored.length - 1].timestamp) > 120) {
     stored.push({
       timestamp: now,
       price_usd: p_usd,
       price_inr: p_inr
     });
   } else {
-    stored[stored.length - 1] = {
-      timestamp: now,
-      price_usd: p_usd,
-      price_inr: p_inr
-    };
+    p_inr = stored[stored.length - 1].price_inr || p_inr;
   }
 
   if (stored.length > 500) stored = stored.slice(-500);
@@ -709,13 +705,14 @@ async function fetchDirectMarket() {
   chartHistoryData = stored;
   renderChartData();
 
-  // Compute real window differences from historical ticks within bounded lookback
+  // Compute real window differences strictly against ticks older than 120s (so 5m diff isn't snapped to now)
   const calcWindow = (targetSec, label) => {
     const targetTime = now - targetSec;
-    const maxLookback = Math.max(600, targetSec * 1.5);
+    const maxLookback = Math.max(720, targetSec * 1.5);
     let closest = null;
     let minDelta = Infinity;
     for (const t of stored) {
+      if ((now - t.timestamp) < 120) continue;
       const delta = Math.abs(t.timestamp - targetTime);
       if (delta <= maxLookback && delta < minDelta) {
         minDelta = delta;
