@@ -246,7 +246,7 @@ function updateHeroDisplay(analysis) {
     const sign = isPositive ? '+' : '-';
     
     diffInrElem.textContent = `${sign}₹${Math.abs(diffInr || 0).toFixed(2)}`;
-    diffPctElem.textContent = `(${sign}${diffPct.toFixed(2)}%)`;
+    diffPctElem.textContent = `(${sign}${Math.abs(diffPct).toFixed(2)}%)`;
     diffPctElem.className = `text-2xl md:text-3xl font-black font-mono ${isPositive ? 'rate-surge-positive' : 'rate-surge-negative'}`;
 
     indElem.innerHTML = isPositive
@@ -274,7 +274,7 @@ function updateHeroDisplay(analysis) {
       banner.className = "mt-4 p-3 rounded-lg bg-emerald-950/40 border border-emerald-500/30 flex items-center gap-3";
       signalTitle.className = "text-xs font-bold text-emerald-400 uppercase tracking-wide";
       signalTitle.textContent = analysis.recommendation || "HOLD / MONITOR";
-      signalDesc.textContent = `30m INR Diff is ${sign}₹${Math.abs(diffInr || 0).toFixed(2)} (${sign}${diffPct.toFixed(2)}%). Sentrix will alert you on high demand spikes.`;
+      signalDesc.textContent = `30m INR Diff is ${sign}₹${Math.abs(diffInr || 0).toFixed(2)} (${sign}${Math.abs(diffPct).toFixed(2)}%). Sentrix will alert you on high demand spikes.`;
       glow.className = "absolute -right-20 -top-20 w-80 h-80 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none";
     }
   }
@@ -320,7 +320,7 @@ function updateMatrixCell(windowKey, diffObj) {
 
     inrElem.textContent = `${sign}₹${diffInrVal}`;
     inrElem.className = `text-lg md:text-xl font-bold font-mono my-1 ${isPos ? 'text-emerald-400' : 'text-rose-400'}`;
-    pctElem.textContent = `${sign}${diffObj.diff_pct.toFixed(2)}%`;
+    pctElem.textContent = `${sign}${Math.abs(diffObj.diff_pct).toFixed(2)}%`;
   } else {
     inrElem.textContent = `--`;
     inrElem.className = `text-lg md:text-xl font-bold font-mono my-1 text-slate-400`;
